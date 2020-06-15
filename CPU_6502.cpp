@@ -52,9 +52,9 @@ bool CPU_6502::Step()
         }
         else if (operandBytes != 1)
             printf("Invalid operand size for opcode 0x%X!\n", opcode);
+        
+        printf(" 0x%X\n", operand);
     }
-
-    printf(" 0x%X\n", operand);
 
     
     // Call the function associated with this opcode
