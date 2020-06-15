@@ -6,6 +6,7 @@
 #include "CPU_6502.h"
 #include "RAM.h"
 #include "StatusMonitor.h"
+#include "iNES_File.h"
 
 int main(int argc, char* argv[])
 {
@@ -15,9 +16,14 @@ int main(int argc, char* argv[])
 
     uint16_t startAddress = 0x600;
 
-    // Put start address (0x6000) at 0xFFFC and 0xFFFD
+    // Put start address (0x600) at 0xFFFC and 0xFFFD
     ram.mem[0xFFFC] = startAddress & 0xFF;  // 0x00;
-    ram.mem[0xFFFD] = startAddress >> 8;    // 0x60;
+    ram.mem[0xFFFD] = startAddress >> 8;    // 0x06;
+
+    // TEMP: make that 0xC000 
+    startAddress = 0xC000;
+    ram.mem[0xFFFC] = startAddress & 0xFF;  // 0x00;
+    ram.mem[0xFFFD] = startAddress >> 8;    // 0xC0;
 
     // load in a hex dump
     //char dump[] = "0600: a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02 ";
@@ -95,12 +101,21 @@ int main(int argc, char* argv[])
         "0850: 40 05 9d 60 05 9d 80 05 9d a0 05 9d c0 05 9d e0 "
         "0860: 05 d0 9d 60 ";
 
-    ram.loadHexDump(mySnakeGame);
+    //ram.loadHexDump(mySnakeGame);
+
+    iNES_File ROM("nestest.nes");
+
+    // TEMP:
+    // Insert the prg data into the RAM
+    memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
+    memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
 
     // Create the status monitor
     StatusMonitor statusMonitor(&ram, &cpu);
 
     cpu.Reset();
+
+    cpu.PC = 0xC000;
 
     while (statusMonitor.EventLoop())
     {

@@ -58,17 +58,28 @@ protected:
     // operations
     void UnhandledOpcode();
     void ADC_Generic(uint8_t value);
+    void ORA_Generic(uint8_t value);
     void SBC_Generic(uint8_t value);
+    void ORA_zp_x_ind();    // 01 test
+    void ORA_zp();          // 05 test
     void ASL_zp();          // 06 test
+    void PHP();             // 08 test
+    void ORA_imm();         // 09 test
     void ASL();             // 0A test
+    void ORA_a();           // 0D test
     void ASL_a();           // 0E test
     void BPL_r();           // 10 test
+    void ORA_zp_ind_y();    // 11 test
+    void ORA_zp_x();        // 15 test
     void ASL_zp_x();        // 16 test
     void CLC();             // 18 test
+    void ORA_a_y();         // 19 test
+    void ORA_a_x();         // 1D test
     void ASL_a_x();         // 1E test
     void JSR();             // 20
     void BIT_zp();          // 24 test
     void AND_zp();          // 25 test
+    void PLP();             // 28 test
     void AND_imm();         // 29 test
     void BIT_a();           // 2C test
     void AND_a();           // 2D test
@@ -82,13 +93,17 @@ protected:
     void LSR();             // 4A test
     void JMP_a();           // 4C
     void LSR_a();           // 4E test
+    void BVC_r();           // 50 test
     void LSR_zp_x();        // 56
+    void CLI();             // 58
     void LSR_a_x();         // 5E
     void RTS();             // 60
     void ADC_zp();          // 65
     void PLA();             // 68
     void ADC_imm();         // 69
     void JMP_ind();         // 6C
+    void BVS_r();           // 70 test
+    void SEI();             // 78
     void STA_zp_x_ind();    // 81 test
     void STY_zp();          // 84
     void STA_zp();          // 85
@@ -122,6 +137,7 @@ protected:
     void LDY_zp_x();        // B4 test
     void LDA_zp_x();        // B5 test
     void LDX_zp_y();        // B6 test
+    void CLV();             // B8 test
     void LDA_a_y();         // B9 test
     void LDA_a_x();         // BD test
     void LDX_a_y();         // BE test
@@ -137,6 +153,7 @@ protected:
     void CMP_zp_x();        // D5 test
     void DEC_zp_x();        // D6 test
     void CMP_a_y();         // D9 test
+    void CLD();             // D8 test
     void CMP_a_x();         // DD test
     void DEC_a_x();         // DE test
     void CPX_imm();         // E0
@@ -152,6 +169,7 @@ protected:
     void BEQ_r();           // F0 test
     void SBC_zp_x();        // F5 test
     void INC_zp_x();        // F6 test
+    void SED();             // F8 test
     void SBC_a_y();         // F9 test
     void SBC_a_x();         // FD test
     void INC_a_x();         // FE test

@@ -91,6 +91,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Administrator\Downloads\SDL2-devel-2.0.9-VC\SDL2-2.0.9\include</AdditionalIncludeDirectories>
+      <StructMemberAlignment>1Byte</StructMemberAlignment>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -123,6 +124,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Administrator\Downloads\SDL2-devel-2.0.9-VC\SDL2-2.0.9\include</AdditionalIncludeDirectories>
+      <StructMemberAlignment>1Byte</StructMemberAlignment>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -152,6 +154,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="iNES_File.h" />
     <ClInclude Include="Mnemonics.h" />
     <ClInclude Include="RAM.h" />
     <ClInclude Include="stdafx.h" />
@@ -161,6 +164,7 @@
     <ClCompile Include="Bus.cpp" />
     <ClCompile Include="CPU_6502.cpp" />
     <ClCompile Include="font.c" />
+    <ClCompile Include="iNES_File.cpp" />
     <ClCompile Include="My_NES.cpp" />
     <ClCompile Include="peripheral.cpp" />
     <ClCompile Include="RAM.cpp" />

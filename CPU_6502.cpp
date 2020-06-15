@@ -52,9 +52,11 @@ bool CPU_6502::Step()
         }
         else if (operandBytes != 1)
             printf("Invalid operand size for opcode 0x%X!\n", opcode);
-        
+
         printf(" 0x%X\n", operand);
     }
+    else
+        printf("\n");
 
     
     // Call the function associated with this opcode
@@ -100,6 +102,15 @@ void CPU_6502::ADC_Generic(uint8_t value)
     a = (result & 0xFF);
 }
 
+// Inclusive OR of accumulator and value
+void CPU_6502::ORA_Generic(uint8_t value)
+{
+    a |= value;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
+}
+
 // a = a - value - !c
 void CPU_6502::SBC_Generic(uint8_t value)
 {
@@ -128,6 +139,24 @@ void CPU_6502::SBC_Generic(uint8_t value)
     flags.negative = IS_NEGATIVE(a);
 }
 
+// 01: ORA (zp, x) - Perform an inclusive or between a and an indexed indirect memory location - 6, 2
+void CPU_6502::ORA_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    //printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+
+    ORA_Generic(bus.read(address));
+}
+
+// 05: ORA zp - perform inclusive or between a and value stored in zero page - 3, 2
+void CPU_6502::ORA_zp()
+{
+    ORA_Generic(bus.read(operand));
+}
+
 // 06: ASL zp - shift memory value in zp to the left one bit  - 5, 2
 void CPU_6502::ASL_zp()
 {
@@ -143,6 +172,19 @@ void CPU_6502::ASL_zp()
     bus.write(operand, value);
 }
 
+// 08: PHP i - Push processor status flags onto stack - 3, 1
+void CPU_6502::PHP()
+{
+    bus.write(0x100 + SP, flags.allFlags);
+    --SP;
+}
+
+// 09: ORA # - inclusive OR between a nd immediate value - 2, 2
+void CPU_6502::ORA_imm()
+{
+    ORA_Generic(operand);
+}
+
 // 0A: ASL - shift accumulator value one to the left - 2, 1
 void CPU_6502::ASL()
 {
@@ -151,6 +193,12 @@ void CPU_6502::ASL()
     a <<= 1;
     flags.negative = IS_NEGATIVE(a);
     flags.zero = IS_NEGATIVE(a);
+}
+
+// 0D: ORA a - Inclusive OR between a and value in memory - 4, 3
+void CPU_6502::ORA_a()
+{
+    ORA_Generic(bus.read(operand));
 }
 
 // 0E: ASL a - shift absolute memory value to the left one bit  - 6, 3
@@ -175,6 +223,25 @@ void CPU_6502::BPL_r()
         PC += (int8_t)operand;
 }
 
+// 11: ORA (zp),y - Inclusive OR between a and an indirectly indexed value in memory - 5, 2
+void CPU_6502::ORA_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    ORA_Generic(bus.read(address));
+}
+
+// 15: Inclusive OR between a and a value in ZP memory offset by x - 4, 2
+void CPU_6502::ORA_zp_x()
+{
+    uint16_t address = (operand + x) & 0xFF;
+
+    ORA_Generic(bus.read(address));
+}
+
 // 16: ASL zp,x - shift memory value in zp offset by x to the left one bit  - 6, 2
 void CPU_6502::ASL_zp_x()
 {
@@ -197,6 +264,18 @@ void CPU_6502::ASL_zp_x()
 void CPU_6502::CLC()
 {
     flags.carry = false;
+}
+
+// 19: ORA a,y - Inclusive OR between a and a value stored in memory offset by y - 4, 3
+void CPU_6502::ORA_a_y()
+{
+    ORA_Generic(bus.read(operand + y));
+}
+
+// 1D: ORA a,x - Inclusive OR between a and a value stored in memory offset by x - 4, 3
+void CPU_6502::ORA_a_x()
+{
+    ORA_Generic(bus.read(operand + x));
 }
 
 // 1E: ASL a,x - shift absolute memory offset by x value to the left one bit  - 7, 3
@@ -248,6 +327,13 @@ void CPU_6502::AND_zp()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+}
+
+// 28: PLP i - pull processor status flags from stack - 4, 1
+void CPU_6502::PLP()
+{
+    ++SP;
+    flags.allFlags = bus.read(0x100 + SP);
 }
 
 // 29: AND # - bitwise AND with accumulator - 2, 2
@@ -368,6 +454,13 @@ void CPU_6502::LSR_a()
     bus.write(operand, value);
 }
 
+// 50: BVC r - branch relative if overflow flag is clear - 2, 2
+void CPU_6502::BVC_r()
+{
+    if (!flags.overflow)
+        PC += (int8_t)operand;
+}
+
 // 56: LSR zp,x - read a byte from zp offset by x, shift it one bit to the right and put it back - 6, 2
 void CPU_6502::LSR_zp_x()
 {
@@ -381,6 +474,12 @@ void CPU_6502::LSR_zp_x()
     value >>= 1;
 
     bus.write(address, value);
+}
+
+// 58: CLI i - clear interrupt disable flag - 2, 1
+void CPU_6502::CLI()
+{
+    flags.irqDisable = false;
 }
 
 // 5E: LSR a,x - read a byte from memory offset by x, shift it one bit to the right and put it back - 7, 3
@@ -438,6 +537,19 @@ void CPU_6502::JMP_ind()
     addr += bus.read(operand + 1) << 8;
 
     PC = addr;
+}
+
+// 70: BVS r - Branch relative if overflow flag is set - 2, 2
+void CPU_6502::BVS_r()
+{
+    if (flags.overflow)
+        PC += (int8_t)operand;
+}
+
+// 78: SEI i - set interrupt disable flag - 2, 1
+void CPU_6502::SEI()
+{
+    flags.irqDisable = true;
 }
 
 // 81: STA (zp, x) - store a into a zp indexed indirect address - 6, 2
@@ -520,7 +632,7 @@ void CPU_6502::STA_zp_ind_y()
 {
     // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read(operand + 1) << 8;
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
 
     bus.write(address, a);
@@ -730,6 +842,12 @@ void CPU_6502::LDX_zp_y()
     flags.negative = IS_NEGATIVE(x);
 }
 
+// B8: CLV i - Clear overflow flag - 2, 1
+void CPU_6502::CLV()
+{
+    flags.overflow = false;
+}
+
 // B9: LDA a,y - Load a with memory at absolute address offset by y - 4, 3
 void CPU_6502::LDA_a_y()
 {
@@ -883,6 +1001,12 @@ void CPU_6502::CMP_a_y()
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+}
+
+// D8 - CLD i - clear decimal flag - 2, 1
+void CPU_6502::CLD()
+{
+    flags.decimal = false;
 }
 
 // DD: CMP a, x - Compare accumulator with memory at absolute address offset by x - 4, 3
@@ -1053,6 +1177,12 @@ void CPU_6502::INC_a_x()
     flags.negative = IS_NEGATIVE(value);
 }
 
+// F8: SED i - set decimal flag - 2, 1
+void CPU_6502::SED()
+{
+    flags.decimal = true;
+}
+
 void CPU_6502::SetupOpcodes()
 {
     for (int i = 0; i < 256; ++i)
@@ -1062,26 +1192,53 @@ void CPU_6502::SetupOpcodes()
         opcodeBytes[i] = 1;
     }
 
+    // 01: ORA (zp, x) - Perform an inclusive or between a and an indexed indirect memory location - 6, 2
+    SetupOpCode(0x01, &CPU_6502::ORA_zp_x_ind, MN_ORA_ZP_X_IND, 2);
+    
+    // 05: ORA zp - perform inclusive or between a and value stored in zero page - 3, 2
+    SetupOpCode(0x05, &CPU_6502::ORA_zp, MN_ORA_ZP, 2);
+
     // 06: ASL zp - shift memory value in zp to the left one bit  - 5, 2
-    SetupOpCode(0x06, &CPU_6502::ASL_zp, MN_ASL_zp, 2);
+    SetupOpCode(0x06, &CPU_6502::ASL_zp, MN_ASL_ZP, 2);
+    
+    // 08: PHP i - Push processor status flags onto stack - 3, 1
+    SetupOpCode(0x08, &CPU_6502::PHP, MN_PHP, 1);
+
+    // 09: ORA # - inclusive OR between a nd immediate value - 2, 2
+    SetupOpCode(0x09, &CPU_6502::ORA_imm, MN_ORA_IMM, 2);
+
+    // 0D: ORA a - Inclusive OR between a and value in memory - 4, 3
+    SetupOpCode(0x0D, &CPU_6502::ORA_a, MN_ORA_ABS, 3);
 
     // 0A: ASL - shift accumulator value one to the left - 2, 1
     SetupOpCode(0x0A, &CPU_6502::ASL, MN_ASL, 1);
 
     // 0E: ASL a - shift absolute memory value to the left one bit  - 6, 3
     SetupOpCode(0x0E, &CPU_6502::ASL_a, MN_ASL_ABS, 3);
-
+    
     // 10: BPL r - branch relative if negative flag is clear - 2, 2
     SetupOpCode(0x10, &CPU_6502::BPL_r, MN_BPL, 2);
 
+    // 11: ORA (zp),y - Inclusive OR between a and an indirectly indexed value in memory - 5, 2
+    SetupOpCode(0x11, &CPU_6502::ORA_zp_ind_y, MN_ORA_ZP_IND_Y, 2);
+
+    // 15: Inclusive OR between a and a value in ZP memory offset by x - 4, 2
+    SetupOpCode(0x15, &CPU_6502::ORA_zp_x, MN_ORA_ZP_X, 2);
+
     // 16: ASL zp,x - shift memory value in zp offset by x to the left one bit  - 6, 2
-    SetupOpCode(0x16, &CPU_6502::ASL_zp_x, MN_ASL_zp_x, 2);
+    SetupOpCode(0x16, &CPU_6502::ASL_zp_x, MN_ASL_ZP_X, 2);
 
     // 18: CLC i - clear carry - 2, 1
     SetupOpCode(0x18, &CPU_6502::CLC, MN_CLC, 1);
 
     // 1E: ASL a,x - shift absolute memory offset by x value to the left one bit  - 7, 3
     SetupOpCode(0x1E, &CPU_6502::ASL_a_x, MN_ASL_ABS_X, 3);
+   
+    // 19: ORA a,y - Inclusive OR between a and a value stored in memory offset by y - 4, 3
+    SetupOpCode(0x19, &CPU_6502::ORA_a_y, MN_ORA_ABS_Y, 3);
+
+    // 1D: ORA a,x - Inclusive OR between a and a value stored in memory offset by x - 4, 3
+    SetupOpCode(0x1D, &CPU_6502::ORA_a_x, MN_ORA_ABS_X, 3);
 
     // 20: JSR a - pushes PC - 1 then jumps to absolute address - 6, 3
     SetupOpCode(0x20, &CPU_6502::JSR, MN_JSR_ABS, 3);
@@ -1091,6 +1248,9 @@ void CPU_6502::SetupOpcodes()
 
     // 25: AND zp - read memory from zp and perform bitwise AND with accumulator - 3, 2
     SetupOpCode(0x25, &CPU_6502::AND_zp, MN_AND_ZP, 2);
+
+    // 28: PLP i - pull processor status flags from stack - 4, 1
+    SetupOpCode(0x28, &CPU_6502::PLP, MN_PLP, 1);
 
     // 29: bitwise AND with accumulator - 2, 2
     SetupOpCode(0x29, &CPU_6502::AND_imm, MN_AND_IMM, 2);
@@ -1131,9 +1291,15 @@ void CPU_6502::SetupOpcodes()
     // 4E: LSR a - read a byte from abs memory, shift it one bit to the right and put it back - 6, 3
     SetupOpCode(0x4E, &CPU_6502::LSR_a, MN_LSR_ABS, 3);
 
+    // 50: BVC r - branch relative if overflow flag is clear - 2, 2
+    SetupOpCode(0x50, &CPU_6502::BVC_r, MN_BVC, 2);
+
     // 56: LSR zp,x - read a byte from zp offset by x, shift it one bit to the right and put it back - 6, 2
     SetupOpCode(0x56, &CPU_6502::LSR_zp_x, MN_LSR_ZP_X, 2);
     
+    // 58: CLI i - clear interrupt disable flag - 2, 1
+    SetupOpCode(0x58, &CPU_6502::CLI, MN_CLI, 1);
+
     // 5E: LSR a,x - read a byte from memory offset by x, shift it one bit to the right and put it back - 7, 3
     SetupOpCode(0x5E, &CPU_6502::LSR_a_x, MN_LSR_ABS_X, 3);
 
@@ -1151,6 +1317,12 @@ void CPU_6502::SetupOpcodes()
 
     // 6C: JMP (a) (jump to the address contained at address a) - 6, 3
     SetupOpCode(0x6C, &CPU_6502::JMP_ind, MN_JMP_IND, 3);
+
+    // 70: BVS r - Branch relative if overflow flag is set - 2, 2
+    SetupOpCode(0x70, &CPU_6502::BVS_r, MN_BVS, 2);
+
+    // 78: SEI i - set interrupt disable flag - 2, 1
+    SetupOpCode(0x78, &CPU_6502::SEI, MN_SEI, 1);
 
     // 81: STA (zp, x) - store a into a zp indexed indirect address - 6, 2
     SetupOpCode(0x81, &CPU_6502::STA_zp_x_ind, MN_STA_ZP_X_IND, 2);
@@ -1250,6 +1422,9 @@ void CPU_6502::SetupOpcodes()
     // B6: LDX zp, y - Load x with memory in zero page offset by y - 4, 2
     SetupOpCode(0xB6, &CPU_6502::LDX_zp_y, MN_LDX_ZP_Y, 2);
 
+    // B8: CLV i - Clear overflow flag - 2, 1
+    SetupOpCode(0xB8, &CPU_6502::CLV, MN_CLV, 1);
+
     // B9: LDA a,y - Load a with memory at absolute address offset by y - 4, 3
     SetupOpCode(0xB9, &CPU_6502::LDA_a_y, MN_LDA_ABS_Y, 3);
 
@@ -1291,6 +1466,9 @@ void CPU_6502::SetupOpcodes()
 
     // D6: DEC zp, x - decrement a value in zp memory offset by x - 6, 2
     SetupOpCode(0xD6, &CPU_6502::DEC_zp_x, MN_DEC_ZP_X, 2);
+
+    // D8 - CLD i - clear decimal flag - 2, 1
+    SetupOpCode(0xD8, &CPU_6502::CLD, MN_CLD, 1);
 
     // D9: CMP a, 9 - Compare accumulator with memory at absolute address offset by y - 4, 3
     SetupOpCode(0xD9, &CPU_6502::CMP_a_y, MN_CMP_ABS_Y, 3);
@@ -1339,6 +1517,9 @@ void CPU_6502::SetupOpcodes()
 
     // F6: INC zp,x - increment a value in zp memory offset by x - 6, 2
     SetupOpCode(0xF6, &CPU_6502::INC_zp_x, MN_INC_ZP_X, 2);
+
+    // F8: SED i - set decimal flag - 2, 1
+    SetupOpCode(0xF8, &CPU_6502::SED, MN_SED, 1);
 
     // F9: SBC a,y - subtract value in abs memory address offset by y from a and store result in a - 4, 3
     SetupOpCode(0xF9, &CPU_6502::SBC_a_y, MN_SBC_ABS_Y, 3);
