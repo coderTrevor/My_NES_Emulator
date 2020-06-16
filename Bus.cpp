@@ -2,7 +2,8 @@
 #include "stdafx.h"
 #include "Bus.h"
 #include "peripheral.h"
-
+#include "CPU_6502.h"
+#include "RAM.h"
 
 Bus::Bus()
 {
@@ -38,6 +39,14 @@ void Bus::write(uint16_t addr, uint8_t data)
         if (addr >= peripherals[i].startAddr && addr <= peripherals[i].endAddr)
         {
             peripherals[i].pPeripheral->write(addr, data);
+
+
+            if (addr >= 0x6000 && addr <= 0x6100)
+            {
+                //pCPU->running = false;
+                printf("%s\n", &((RAM *)(peripherals[0].pPeripheral))->mem[0x6004]);
+            }
+
             return;
         }
     }

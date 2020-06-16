@@ -78,6 +78,7 @@ bool StatusMonitor::EventLoop()
                         break;
                     case SDLK_g:
                         cpuRunning = true;
+                        pCPU->running = true;
                         break;
                 }
 
@@ -92,9 +93,9 @@ bool StatusMonitor::EventLoop()
 
     Draw();
 
-    if (cpuRunning)
+    if (cpuRunning && pCPU->running)
     {
-        for (int i = 0; i < 100 && cpuRunning; ++i)
+        for (int i = 0; i < 100 && cpuRunning && pCPU->running; ++i)
             cpuRunning = pCPU->Step();
     }
 

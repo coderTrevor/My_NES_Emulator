@@ -8,6 +8,10 @@ CPU_6502::CPU_6502()
     SetupOpcodes();
 
     printf("%d of 151 opcodes implemented, %02.1f%%\n", opsHandled, opsHandled * 100.0 / 151);
+
+    running = true;
+
+    bus.pCPU = this;
 }
 
 
@@ -102,6 +106,15 @@ void CPU_6502::ADC_Generic(uint8_t value)
     a = (result & 0xFF);
 }
 
+// Perform an exclusive or between a and value and store result in a
+void CPU_6502::EOR_Generic(uint8_t value)
+{
+    a ^= value;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
+}
+
 // Inclusive OR of accumulator and value
 void CPU_6502::ORA_Generic(uint8_t value)
 {
@@ -137,6 +150,13 @@ void CPU_6502::SBC_Generic(uint8_t value)
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+}
+
+// 00: BRK - break - 7, 1
+void CPU_6502::BRK()
+{
+    printf("BRK encountered\n");
+    running = false;
 }
 
 // 01: ORA (zp, x) - Perform an inclusive or between a and an indexed indirect memory location - 6, 2
@@ -175,14 +195,19 @@ void CPU_6502::ASL_zp()
 // 08: PHP i - Push processor status flags onto stack - 3, 1
 void CPU_6502::PHP()
 {
-    bus.write(0x100 + SP, flags.allFlags);
+    uint8_t flagValues = flags.allFlags;
+
+    // Set bits 4 and 5 (See https://wiki.nesdev.com/w/index.php/Status_flags#The_B_flag)
+    flagValues |= 0x30;
+
+    bus.write(0x100 + SP, flagValues);
     --SP;
 }
 
 // 09: ORA # - inclusive OR between a nd immediate value - 2, 2
 void CPU_6502::ORA_imm()
 {
-    ORA_Generic(operand);
+    ORA_Generic((uint8_t)operand);
 }
 
 // 0A: ASL - shift accumulator value one to the left - 2, 1
@@ -308,6 +333,21 @@ void CPU_6502::JSR()
     PC = operand;
 }
 
+// 21: AND (zp, x) - Perform an AND between a and an indexed indirect memory location - 6, 2
+void CPU_6502::AND_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    //printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+
+    a &= bus.read(address);
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
+}
+
 // 24: BIT zp - Perform a bit test with a value in zp memory - 3, 2
 void CPU_6502::BIT_zp()
 {
@@ -329,11 +369,36 @@ void CPU_6502::AND_zp()
     flags.negative = IS_NEGATIVE(a);
 }
 
+// 26: ROL zp - rotate value in zero page memory one bit to the left - 5, 2
+void CPU_6502::ROL_zp()
+{
+    uint8_t value = bus.read(operand);
+    uint8_t newValue = value << 1;
+
+    if (flags.carry)
+        newValue |= 1;
+
+    flags.carry = IS_NEGATIVE(newValue);
+
+    value = newValue;
+
+    flags.negative = IS_NEGATIVE(value);
+    flags.zero = (value == 0);
+
+    bus.write(operand, value);
+}
+
 // 28: PLP i - pull processor status flags from stack - 4, 1
 void CPU_6502::PLP()
 {
     ++SP;
-    flags.allFlags = bus.read(0x100 + SP);
+
+    // ignore bits 4 and 5 of pushed values (see PHP)
+    uint8_t flagValues = bus.read(0x100 + SP);
+    flagValues &= 0xCF;
+    flagValues += flags.allFlags & 0x30;
+
+    flags.allFlags = flagValues;
 }
 
 // 29: AND # - bitwise AND with accumulator - 2, 2
@@ -343,6 +408,22 @@ void CPU_6502::AND_imm()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+}
+
+// 2A: ROL A - rotate accumulator one bit to the left - 2, 1
+void CPU_6502::ROL_A()
+{
+    uint8_t newA = a << 1;
+
+    if (flags.carry)
+        newA |= 1;
+
+    flags.carry = IS_NEGATIVE(a);
+    
+    a = newA;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
 }
 
 // 2C: BIT a - Perform a bit test with a value in abs memory - 4, 3
@@ -366,11 +447,46 @@ void CPU_6502::AND_a()
     flags.negative = IS_NEGATIVE(a);
 }
 
+// 2E: ROL a - rotate value in memory one bit to the left - 6, 3
+void CPU_6502::ROL_a()
+{
+    uint8_t value = bus.read(operand);
+    uint8_t newValue = value << 1;
+
+    if (flags.carry)
+        newValue |= 1;
+
+    flags.carry = IS_NEGATIVE(newValue);
+
+    value = newValue;
+
+    flags.negative = IS_NEGATIVE(value);
+    flags.zero = (value == 0);
+
+    bus.write(operand, value);
+}
+
 // 30: BMI r - branch relative if negative flag is set - 2, 2
 void CPU_6502::BMI_r()
 {
     if (flags.negative)
         PC += (int8_t)operand;
+}
+
+// 31: AND (zp),y - Perform logical AND operation between a and an indirectly indexed value in memory - 5, 2
+void CPU_6502::AND_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    uint8_t value = bus.read(address);
+
+    a &= value;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
 }
 
 // 35: AND zp, x - read memory from zp + x and perform bitwise AND with accumulator - 4, 2
@@ -383,6 +499,28 @@ void CPU_6502::AND_zp_x()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+}
+
+// 36: ROL zp,x - rotate value in zero page memory offset by x one bit to the left - 6, 2
+void CPU_6502::ROL_zp_x()
+{
+    // handle zero page wrap-around
+    uint16_t address = (operand + x) & 0xFF;
+
+    uint8_t value = bus.read(address);
+    uint8_t newValue = value << 1;
+
+    if (flags.carry)
+        newValue |= 1;
+
+    flags.carry = IS_NEGATIVE(newValue);
+
+    value = newValue;
+
+    flags.negative = IS_NEGATIVE(value);
+    flags.zero = (value == 0);
+
+    bus.write(address, value);
 }
 
 // 38: set carry - 2, 1
@@ -409,6 +547,60 @@ void CPU_6502::AND_a_x()
     flags.negative = IS_NEGATIVE(a);
 }
 
+// 3E: ROL a,x - rotate value in absolute memory offset by x one bit to the left - 7, 3
+void CPU_6502::ROL_a_x()
+{
+    uint16_t address = operand + x;
+
+    uint8_t value = bus.read(address);
+    uint8_t newValue = value << 1;
+
+    if (flags.carry)
+        newValue |= 1;
+
+    flags.carry = IS_NEGATIVE(newValue);
+
+    value = newValue;
+
+    flags.negative = IS_NEGATIVE(value);
+    flags.zero = (value == 0);
+
+    bus.write(address, value);
+}
+
+// 40: RTI - return from interrupt - 6, 1
+void CPU_6502::RTI()
+{
+    ++SP;
+    flags.allFlags = bus.read(0x100 + SP);
+
+    ++SP;
+    // pop off the low byte of the return address
+    uint16_t newPC = bus.read(0x100 + SP);
+
+    // pop off the high byte
+    ++SP;
+    newPC += bus.read(0x100 + SP) << 8;
+}
+
+// 41: EOR (zp,x) - Perform EOR with a value from a zp indexed indirect address - 6, 2
+void CPU_6502::EOR_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+
+    EOR_Generic(bus.read(address));
+}
+
+// 45: EOR zp - Perform EOR between a and a value stored in zp memory, and store result in a - 3, 2
+void CPU_6502::EOR_zp()
+{
+    EOR_Generic(bus.read(operand));
+}
+
 // 46: LSR zp - read a byte from zp, shift it one bit to the right and put it back - 5, 2
 void CPU_6502::LSR_zp()
 {
@@ -428,6 +620,12 @@ void CPU_6502::PHA()
     --SP;
 }
 
+// 49: EOR # - Perform EOR between a and an immediate value - 2, 2
+void CPU_6502::EOR_imm()
+{
+    EOR_Generic((uint8_t)operand);
+}
+
 // 4A: LSR - shift a one bit to the right. Set carry with old bit 0 value. - 2, 1
 void CPU_6502::LSR()
 {
@@ -440,6 +638,12 @@ void CPU_6502::LSR()
 void CPU_6502::JMP_a()
 {
     PC = operand;
+}
+
+// 4D: EOR a - Perform an EOR between a and a value in absolute memory - 4, 3
+void CPU_6502::EOR_a()
+{
+    EOR_Generic(bus.read(operand));
 }
 
 // 4E: LSR a - read a byte from abs memory, shift it one bit to the right and put it back - 6, 3
@@ -461,6 +665,26 @@ void CPU_6502::BVC_r()
         PC += (int8_t)operand;
 }
 
+// 51: EOR (zp),y - Perform an EOR between a and an indirectly indexed value in memory - 5, 2
+void CPU_6502::EOR_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    EOR_Generic(bus.read(address));
+}
+
+// 55: EOR zp,x - Perform an EOR between a and a value in zp memory offset by x - 4, 2
+void CPU_6502::EOR_zp_x()
+{
+    // handle zero-page wraparound
+    uint16_t address = (operand + x) & 0xFF;
+
+    EOR_Generic(bus.read(address));
+}
+
 // 56: LSR zp,x - read a byte from zp offset by x, shift it one bit to the right and put it back - 6, 2
 void CPU_6502::LSR_zp_x()
 {
@@ -480,6 +704,18 @@ void CPU_6502::LSR_zp_x()
 void CPU_6502::CLI()
 {
     flags.irqDisable = false;
+}
+
+// 59: EOR a,y - Perform an EOR between a and a value in absolute memory offset by y - 4, 3
+void CPU_6502::EOR_a_y()
+{
+    EOR_Generic(bus.read(operand + y));
+}
+
+// 5D: EOR a,x - Perform an EOR between a and a value in absolute memory offset by x - 4, 3
+void CPU_6502::EOR_a_x()
+{
+    EOR_Generic(bus.read(operand + x));
 }
 
 // 5E: LSR a,x - read a byte from memory offset by x, shift it one bit to the right and put it back - 7, 3
@@ -508,10 +744,41 @@ void CPU_6502::RTS()
     PC = newPC + 1;
 }
 
+// 61: ADC (zp,x) - Perform an add with carry between a and a value from a zp indexed indirect address - 6, 2
+void CPU_6502::ADC_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+
+    ADC_Generic(bus.read(address));
+}
+
 // 65: ADC zp (add memory in zp to accumulator)
 void CPU_6502::ADC_zp()
 {
     ADC_Generic(bus.read(operand));
+}
+
+// 66: ROR zp - Move value stored in zp one bit to the right - 5, 2
+void CPU_6502::ROR_zp()
+{
+    uint8_t value = bus.read(operand);
+
+    uint8_t oldValue = value;
+
+    value >>= 1;
+
+    if (flags.carry)
+        value |= 0x80;
+
+    flags.carry = (oldValue & 1);
+    flags.zero = (value == 0);
+    flags.negative = IS_NEGATIVE(value);
+
+    bus.write(operand, value);
 }
 
 // 68: PLA s - pull off of stack and into a - 4, 1
@@ -530,13 +797,60 @@ void CPU_6502::ADC_imm()
     ADC_Generic((uint8_t)operand);
 }
 
+// 6A: ROR A - Rotate accumulator one bit to the right - 2, 1
+void CPU_6502::ROR_A()
+{
+    uint8_t newA = a >> 1;
+
+    if (flags.carry)
+        newA |= 0x80;
+
+    flags.carry = ((a && 1) == 1);
+
+    a = newA;
+
+    flags.zero = (a == 0);
+    flags.negative = IS_NEGATIVE(a);
+}
+
 // 6C: JMP (a) (jump to the address contained at address a) - 6, 3
 void CPU_6502::JMP_ind()
 {
     uint16_t addr = bus.read(operand);
-    addr += bus.read(operand + 1) << 8;
+    
+    // The original 6502 has an error we need to check for which occurs if operand is 0xXXff
+    // If so, it will read the address from 0xXX00 instead of operand + 1
+    if((operand & 0xFF) == 0xFF)
+        addr += (uint16_t)bus.read(operand & 0xFF00) << 8;
+    else
+        addr += (uint16_t)bus.read(operand + 1) << 8;
 
     PC = addr;
+}
+
+// 6D: ADC a - add value in absolute memory to accumulator - 4, 3
+void CPU_6502::ADC_a()
+{
+    ADC_Generic(bus.read(operand));
+}
+
+// 6E: ROR a - Move value stored in absolute memory one bit to the right - 6, 3
+void CPU_6502::ROR_a()
+{
+    uint8_t value = bus.read(operand);
+
+    uint8_t oldValue = value;
+
+    value >>= 1;
+
+    if (flags.carry)
+        value |= 0x80;
+
+    flags.carry = (oldValue & 1);
+    flags.zero = (value == 0);
+    flags.negative = IS_NEGATIVE(value);
+
+    bus.write(operand, value);
 }
 
 // 70: BVS r - Branch relative if overflow flag is set - 2, 2
@@ -546,10 +860,83 @@ void CPU_6502::BVS_r()
         PC += (int8_t)operand;
 }
 
+// 71: ADC (zp),y - Perform an add with carry between a and an indirectly indexed value in memory - 5, 2 
+void CPU_6502::ADC_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    ADC_Generic(bus.read(address));
+}
+
+// 75: ADC zp,x - Perform an add with carry between a and a memory value in zero page offset by x - 4, 2
+void CPU_6502::ADC_zp_x()
+{
+    // Handle zero-page wrap-around
+    uint16_t address = (operand + x) & 0xFF;
+    
+    ADC_Generic(bus.read(address));
+}
+
+// 76: ROR zp,x - Move value stored in zero page of memory offset by x one bit to the right - 5, 2
+void CPU_6502::ROR_zp_x()
+{
+    // Handle zero-page wrap-around
+    uint16_t address = (operand + x) & 0xFF;
+
+    uint8_t value = bus.read(address);
+
+    uint8_t oldValue = value;
+
+    value >>= 1;
+
+    if (flags.carry)
+        value |= 0x80;
+
+    flags.carry = (oldValue & 1);
+    flags.zero = (value == 0);
+    flags.negative = IS_NEGATIVE(value);
+
+    bus.write(address, value);
+}
+
 // 78: SEI i - set interrupt disable flag - 2, 1
 void CPU_6502::SEI()
 {
     flags.irqDisable = true;
+}
+
+// 79: ADC a,y - Perform an add with carry between a and a value in absolute memory offset by y - 4, 3
+void CPU_6502::ADC_a_y()
+{
+    ADC_Generic(a + y);
+}
+
+// 7D: ADC a,x - Perform an add with carry between a and a value at an absolute address offset by x - 4, 3
+void CPU_6502::ADC_a_x()
+{
+    ADC_Generic(bus.read(operand + x));
+}
+
+// 7E: ROR a,x - Move value stored in absolute memory offset by x one bit to the right - 7, 3
+void CPU_6502::ROR_a_x()
+{
+    uint8_t value = bus.read(operand + x);
+
+    uint8_t oldValue = value;
+
+    value >>= 1;
+
+    if (flags.carry)
+        value |= 0x80;
+
+    flags.carry = (oldValue & 1);
+    flags.zero = (value == 0);
+    flags.negative = IS_NEGATIVE(value);
+
+    bus.write(operand + x, value);
 }
 
 // 81: STA (zp, x) - store a into a zp indexed indirect address - 6, 2
@@ -591,6 +978,15 @@ void CPU_6502::DEY()
 
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
+}
+
+// 98: TYA i - transfer y to a - 2, 1
+void CPU_6502::TYA()
+{
+    a = y;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
 }
 
 // 8A: TXA - transfer x to a - 2, 1
@@ -767,6 +1163,15 @@ void CPU_6502::TAX()
     flags.zero = (x == 0);
 }
 
+// AC: LDY a - Load y with a value from absolute memory - 4, 3
+void CPU_6502::LDY_a()
+{
+    y = bus.read(operand);
+
+    flags.negative = IS_NEGATIVE(y);
+    flags.zero = (y == 0);
+}
+
 // AD: LDA a - Load a with absolute memory address - LDA 4, 3
 void CPU_6502::LDA_a()
 {
@@ -857,6 +1262,24 @@ void CPU_6502::LDA_a_y()
     flags.negative = IS_NEGATIVE(a);
 }
 
+// BA: TSX i - copy stack pointer to x - 2, 1
+void CPU_6502::TSX()
+{
+    x = SP;
+
+    flags.negative = IS_NEGATIVE(x);
+    flags.zero = (x == 0);
+}
+
+// BC: LDY a,x - Load y with a value from absolute memory offset by x - 4, 3
+void CPU_6502::LDY_a_x()
+{
+    y = bus.read(operand + x);
+
+    flags.negative = IS_NEGATIVE(y);
+    flags.zero = (y == 0);
+}
+
 // BD: LDA a,x - load a with memory at absolute address offset by x - 4, 3
 void CPU_6502::LDA_a_x()
 {
@@ -881,6 +1304,33 @@ void CPU_6502::CPY_imm()
     flags.zero = (y == operand);
     flags.carry = (y >= operand);
     flags.negative = IS_NEGATIVE(y - operand);
+}
+
+// C4: CPY zp - compare y with value stored in zero page - 3, 2
+void CPU_6502::CPY_zp()
+{
+    uint8_t value = bus.read(operand);
+
+    flags.zero = (y == value);
+    flags.carry = (y >= value);
+    flags.negative = IS_NEGATIVE(y - value);
+}
+
+// C1: CMP (zp,x) - Compare a with a zp indexed indirect value - 6, 2
+void CPU_6502::CMP_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    // TODO: Does this need to wrap around as well?
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+    
+    uint8_t value = bus.read(address);
+
+    flags.zero = (a == value);
+    flags.carry = (a >= value);
+    flags.negative = IS_NEGATIVE(a - value);
 }
 
 // C5: CMP zp - compare accumulator with memory stored in zero page - 3, 2
@@ -931,6 +1381,16 @@ void CPU_6502::DEX()
     flags.zero = (x == 0);
 }
 
+// CC: CPY a - compare y with value stored in absolute memory - 4, 3
+void CPU_6502::CPY_a()
+{
+    uint8_t value = bus.read(operand);
+
+    flags.zero = (y == value);
+    flags.carry = (y >= value);
+    flags.negative = IS_NEGATIVE(y - value);
+}
+
 // CD: CMP a - Compare accumulator with memory at absolute address - 4, 3
 void CPU_6502::CMP_a()
 {
@@ -962,6 +1422,21 @@ void CPU_6502::BRNE_r()
         int8_t displacement = (int8_t)operand;
         PC += displacement;
     }
+}
+
+// D1: CMP (zp), y - Compare a with an indirectly indexed value in memory - 5, 2
+void CPU_6502::CMP_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    uint8_t value = bus.read(address);
+
+    flags.zero = (a == value);
+    flags.carry = (a >= value);
+    flags.negative = IS_NEGATIVE(a - value);
 }
 
 // D5: CMP zp,x - compare accumulator with memory stored in zero page offset by x - 4, 2
@@ -1038,6 +1513,19 @@ void CPU_6502::CPX_imm()
     flags.carry = (x >= operand);
     flags.zero = (x == operand);
     flags.negative = IS_NEGATIVE(x - operand);
+}
+
+// E1: SBC (zp,x) - Perform a subtract with carry from an indexed indirect value - 6, 2
+void CPU_6502::SBC_zp_x_ind()
+{
+    uint16_t addr1 = (operand + x) & 0xFF;
+    printf("addr1: 0x%X\n", addr1);
+
+    uint16_t address = bus.read(addr1);
+    // TODO: wrap-around?
+    address += (uint16_t)bus.read(addr1 + 1) << 8;
+
+    SBC_Generic(bus.read(address));
 }
 
 // E4: CPX zp - compare x with memory value stored in zero page - 3, 2
@@ -1127,6 +1615,17 @@ void CPU_6502::BEQ_r()
     }
 }
 
+// F1: SBC (zp), y - Perform a subtraction with carry between a and an indirectly indexed value in memory - 5, 2
+void CPU_6502::SBC_zp_ind_y()
+{
+    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
+    uint16_t address = bus.read(operand);
+    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += y;
+
+    SBC_Generic(bus.read(address));
+}
+
 // F5: SBC zp, x - Subtract value at zp offset by x from a and store result in a - 4, 2
 void CPU_6502::SBC_zp_x()
 {
@@ -1192,6 +1691,9 @@ void CPU_6502::SetupOpcodes()
         opcodeBytes[i] = 1;
     }
 
+    // 00: BRK - break - 7, 1
+    SetupOpCode(0x00, &CPU_6502::BRK, MN_BRK, 1);
+
     // 01: ORA (zp, x) - Perform an inclusive or between a and an indexed indirect memory location - 6, 2
     SetupOpCode(0x01, &CPU_6502::ORA_zp_x_ind, MN_ORA_ZP_X_IND, 2);
     
@@ -1240,6 +1742,9 @@ void CPU_6502::SetupOpcodes()
     // 1D: ORA a,x - Inclusive OR between a and a value stored in memory offset by x - 4, 3
     SetupOpCode(0x1D, &CPU_6502::ORA_a_x, MN_ORA_ABS_X, 3);
 
+    // 21: AND (zp, x) - Perform an AND between a and an indexed indirect memory location - 6, 2
+    SetupOpCode(0x21, &CPU_6502::AND_zp_x_ind, MN_AND_ZP_X_IND, 2);
+
     // 20: JSR a - pushes PC - 1 then jumps to absolute address - 6, 3
     SetupOpCode(0x20, &CPU_6502::JSR, MN_JSR_ABS, 3);
 
@@ -1249,11 +1754,17 @@ void CPU_6502::SetupOpcodes()
     // 25: AND zp - read memory from zp and perform bitwise AND with accumulator - 3, 2
     SetupOpCode(0x25, &CPU_6502::AND_zp, MN_AND_ZP, 2);
 
+    // 26: ROL zp - rotate value in zero page memory one bit to the left - 5, 2
+    SetupOpCode(0x26, &CPU_6502::ROL_zp, MN_ROL_ZP, 2);
+
     // 28: PLP i - pull processor status flags from stack - 4, 1
     SetupOpCode(0x28, &CPU_6502::PLP, MN_PLP, 1);
 
     // 29: bitwise AND with accumulator - 2, 2
     SetupOpCode(0x29, &CPU_6502::AND_imm, MN_AND_IMM, 2);
+
+    // 2A: ROL A - rotate accumulator one bit to the left - 2, 1
+    SetupOpCode(0x2A, &CPU_6502::ROL_A, MN_ROL_A, 1);
 
     // 2C: BIT a - Perform a bit test with a value in abs memory - 4, 3
     SetupOpCode(0x2C, &CPU_6502::BIT_a, MN_BIT_ABS, 3);
@@ -1261,11 +1772,20 @@ void CPU_6502::SetupOpcodes()
     // 2D: AND a - read memory from absolute address and perform bitwise AND with accumulator - 4, 3
     SetupOpCode(0x2D, &CPU_6502::AND_a, MN_AND_ABS, 3);
 
+    // 2E: ROL a - rotate value in memory one bit to the left - 6, 3
+    SetupOpCode(0x2E, &CPU_6502::ROL_a, MN_ROL_ABS, 3);
+
     // 30: BMI r - branch relative if negative flag is set - 2, 2
     SetupOpCode(0x30, &CPU_6502::BMI_r, MN_BMI, 2);
 
+    // 31: AND (zp),y - Perform logical AND operation between a and an indirectly indexed value in memory - 5, 2
+    SetupOpCode(0x31, &CPU_6502::AND_zp_ind_y, MN_AND_ZP_IND_Y, 2);
+
     // 35: AND zp, x - read memory from zp + x and perform bitwise AND with accumulator - 4, 2
     SetupOpCode(0x35, &CPU_6502::AND_zp_x, MN_AND_ZP_X, 2);
+
+    // 36: ROL zp,x - rotate value in zero page memory offset by x one bit to the left - 6, 2
+    SetupOpCode(0x36, &CPU_6502::ROL_zp_x, MN_ROL_ZP_X, 2);
 
     // 38: set carry - 2, 1
     SetupOpCode(0x38, &CPU_6502::SEC, MN_SEC, 1);
@@ -1276,11 +1796,26 @@ void CPU_6502::SetupOpcodes()
     // 3D: AND a,x - read memory from absolute address offset by x and perform bitwise AND with accumulator - 4, 3
     SetupOpCode(0x3D, &CPU_6502::AND_a_x, MN_AND_ABS_X, 3);
 
+    // 3E: ROL a,x - rotate value in absolute memory offset by x one bit to the left - 7, 3
+    SetupOpCode(0x3E, &CPU_6502::ROL_a_x, MN_ROL_ABS_X, 3);
+
+    // 40: RTI - return from interrupt - 6, 1
+    SetupOpCode(0x40, &CPU_6502::RTI, MN_RTI, 1);
+
+    // 41: EOR (zp,x) - Perform EOR with a value from a zp indexed indirect address - 6, 2
+    SetupOpCode(0x41, &CPU_6502::EOR_zp_x_ind, MN_EOR_ZP_X_IND, 2);
+
+    // 45: EOR zp - Perform EOR between a and a value stored in zp memory, and store result in a - 3, 2
+    SetupOpCode(0x45, &CPU_6502::EOR_zp, MN_EOR_ZP, 2);
+
     // 46: LSR zp - read a byte from zp, shift it one bit to the right and put it back - 5, 2
     SetupOpCode(0x46, &CPU_6502::LSR_zp, MN_LSR_ZP, 2);
     
     // 48: PHA s - push a to stack - 3, 1
     SetupOpCode(0x48, &CPU_6502::PHA, MN_PHA, 1);
+
+    // 49: EOR # - Perform EOR between a and an immediate value - 2, 2
+    SetupOpCode(0x49, &CPU_6502::EOR_imm, MN_EOR_IMM, 2);
 
     // 4A: LSR - shift a one bit to the right. Set carry with old bit 0 value. - 2, 1
     SetupOpCode(0x4A, &CPU_6502::LSR, MN_LSR, 1);
@@ -1288,11 +1823,20 @@ void CPU_6502::SetupOpcodes()
     // 4C: JMP a (jump to absolute address) - 3, 3
     SetupOpCode(0x4C, &CPU_6502::JMP_a, MN_JMP_ABS, 3);
 
+    // 4D: EOR a - Perform an EOR between a and a value in absolute memory - 4, 3
+    SetupOpCode(0x4D, &CPU_6502::EOR_a, MN_EOR_ABS, 3);
+
     // 4E: LSR a - read a byte from abs memory, shift it one bit to the right and put it back - 6, 3
     SetupOpCode(0x4E, &CPU_6502::LSR_a, MN_LSR_ABS, 3);
 
     // 50: BVC r - branch relative if overflow flag is clear - 2, 2
     SetupOpCode(0x50, &CPU_6502::BVC_r, MN_BVC, 2);
+
+    // 51: EOR (zp),y - Perform an EOR between a and  - 5, 2
+    SetupOpCode(0x51, &CPU_6502::EOR_zp_ind_y, MN_EOR_ZP_IND_Y, 2);
+
+    // 55: EOR zp,x - Perform an EOR between a and a value in zp memory offset by x - 4, 2
+    SetupOpCode(0x55, &CPU_6502::EOR_zp_x, MN_EOR_ZP_X, 2);
 
     // 56: LSR zp,x - read a byte from zp offset by x, shift it one bit to the right and put it back - 6, 2
     SetupOpCode(0x56, &CPU_6502::LSR_zp_x, MN_LSR_ZP_X, 2);
@@ -1300,14 +1844,26 @@ void CPU_6502::SetupOpcodes()
     // 58: CLI i - clear interrupt disable flag - 2, 1
     SetupOpCode(0x58, &CPU_6502::CLI, MN_CLI, 1);
 
+    // 59: EOR a,y - Perform an EOR between a and a value in absolute memory offset by y - 4, 3
+    SetupOpCode(0x59, &CPU_6502::EOR_a_y, MN_EOR_ABS_Y, 3);
+
+    // 5D: EOR a,x - Perform an EOR between a and a value in absolute memory offset by x - 4, 3
+    SetupOpCode(0x5D, &CPU_6502::EOR_a_x, MN_EOR_ABS_X, 3);
+
     // 5E: LSR a,x - read a byte from memory offset by x, shift it one bit to the right and put it back - 7, 3
     SetupOpCode(0x5E, &CPU_6502::LSR_a_x, MN_LSR_ABS_X, 3);
 
     // 60: RTS pop an adress of the stack, add one, and jump there - 6, 1
     SetupOpCode(0x60, &CPU_6502::RTS, MN_RTS, 1);
 
+    // 61: ADC (zp,x) - Perform an add with carry between a and a value from a zp indexed indirect address - 6, 2
+    SetupOpCode(0x61, &CPU_6502::ADC_zp_x_ind, MN_ADC_ZP_X_IND, 2);
+
     // 65: ADC zp (add memory in zp to accumulator) - 3, 2
     SetupOpCode(0x65, &CPU_6502::ADC_zp, MN_ADC_ZP, 2);
+
+    // 66: ROR zp - Move value stored in zp one bit to the right - 5, 2
+    SetupOpCode(0x66, &CPU_6502::ROR_zp, MN_ROR_ZP, 2);
 
     // 68: PLA s - pull off of stack and into a - 4, 1
     SetupOpCode(0x68, &CPU_6502::PLA, MN_PLA, 1);
@@ -1315,14 +1871,41 @@ void CPU_6502::SetupOpcodes()
     // 69: ADC # - add immediate - 2, 2
     SetupOpCode(0x69, &CPU_6502::ADC_imm, MN_ADC_IMM, 2);
 
+    // 6A: ROR A - Rotate accumulator one bit to the right - 2, 1
+    SetupOpCode(0x6A, &CPU_6502::ROR_A, MN_ROR_A, 1);
+
     // 6C: JMP (a) (jump to the address contained at address a) - 6, 3
     SetupOpCode(0x6C, &CPU_6502::JMP_ind, MN_JMP_IND, 3);
 
+    // 6D: ADC a - add value in absolute memory to accumulator - 4, 3
+    SetupOpCode(0x6D, &CPU_6502::ADC_a, MN_ADC_ABS, 3);
+
+    // 6E: ROR a - Move value stored in absolute memory one bit to the right - 6, 3
+    SetupOpCode(0x6E, &CPU_6502::ROR_a, MN_ROR_a, 3);
+
     // 70: BVS r - Branch relative if overflow flag is set - 2, 2
     SetupOpCode(0x70, &CPU_6502::BVS_r, MN_BVS, 2);
+    
+    // 71: ADC (zp),y - Perform an add with carry between a and an indirectly indexed value in memory - 5, 2 
+    SetupOpCode(0x71, &CPU_6502::ADC_zp_ind_y, MN_ADC_ZP_IND_Y, 2);
+
+    // 75: ADC zp,x - Perform an add with carry between a and a memory value in zero page offset by x - 4, 2
+    SetupOpCode(0x75, &CPU_6502::ADC_zp_x, MN_ADC_ZP_X, 2);
+
+    // 76: ROR zp,x - Move value stored in zero page of memory offset by x one bit to the right - 5, 2
+    SetupOpCode(0x76, &CPU_6502::ROR_zp_x, MN_ROR_ZP_X, 2);
 
     // 78: SEI i - set interrupt disable flag - 2, 1
     SetupOpCode(0x78, &CPU_6502::SEI, MN_SEI, 1);
+
+    // 79: ADC a,y - Perform an add with carry between a and a value in absolute memory offset by y - 4, 3
+    SetupOpCode(0x79, &CPU_6502::ADC_a_y, MN_ADC_ABS_Y, 3);
+
+    // 7D: ADC a,x - Perform an add with carry between a and a value at an absolute address offset by x - 4, 3
+    SetupOpCode(0x7D, &CPU_6502::ADC_a_x, MN_ADC_ABS_X, 3);
+
+    // 7E: ROR a,x - Move value stored in absolute memory offset by x one bit to the right - 7, 3
+    SetupOpCode(0x7E, &CPU_6502::ROR_a_x, MN_ROR_ABS_X, 3);
 
     // 81: STA (zp, x) - store a into a zp indexed indirect address - 6, 2
     SetupOpCode(0x81, &CPU_6502::STA_zp_x_ind, MN_STA_ZP_X_IND, 2);
@@ -1366,6 +1949,9 @@ void CPU_6502::SetupOpcodes()
     // 96: STX zp,y - store x in a zp address offset by y - 4, 2
     SetupOpCode(0x96, &CPU_6502::STX_zp_y, MN_STX_ZP_Y, 2);
 
+    // 98: TYA i - transfer y to a - 2, 1
+    SetupOpCode(0x98, &CPU_6502::TYA, MN_TYA, 1);
+
     // 99: STA a,y - Store a to absolute address + y offset - 5, 3
     SetupOpCode(0x99, &CPU_6502::STA_a_y, MN_STA_ABS_Y, 3);
 
@@ -1403,8 +1989,14 @@ void CPU_6502::SetupOpcodes()
     // AA: TAX - 2, 1
     SetupOpCode(0xAA, &CPU_6502::TAX, MN_TAX, 1);
     
+    // AC: LDY a - Load y with a value from absolute memory - 4, 3
+    SetupOpCode(0xAC, &CPU_6502::LDY_a, MN_LDY_ABS, 3);
+
     // AD: LDA a - Load a with absolute memory address - LDA 4, 3
     SetupOpCode(0xAD, &CPU_6502::LDA_a, MN_LDA_ABS, 3);
+
+    // AE: LDX a - load x with value from absolute memory address - 4, 3
+    SetupOpCode(0xAE, &CPU_6502::LDX_a, MN_LDX_ABS, 3);
 
     // B0: BCS r - branch relative if carry set - 2, 2
     SetupOpCode(0xB0, &CPU_6502::BCS_r, MN_BCS, 2);
@@ -1428,6 +2020,12 @@ void CPU_6502::SetupOpcodes()
     // B9: LDA a,y - Load a with memory at absolute address offset by y - 4, 3
     SetupOpCode(0xB9, &CPU_6502::LDA_a_y, MN_LDA_ABS_Y, 3);
 
+    // BA: TSX i - copy stack pointer to x - 2, 1
+    SetupOpCode(0xBA, &CPU_6502::TSX, MN_TSX, 1);
+
+    // BC: LDY a,x - Load y with a value from absolute memory offset by x - 4, 3
+    SetupOpCode(0xBC, &CPU_6502::LDY_a_x, MN_LDY_ABS_X, 3);
+
     // BD: LDA a,x - load a with memory at absolute address offset by x - 4, 3
     SetupOpCode(0xBD, &CPU_6502::LDA_a_x, MN_LDA_ABS_X, 3);
     
@@ -1436,6 +2034,12 @@ void CPU_6502::SetupOpcodes()
 
     // C0: CPY # - compare y with immediate value - 2, 2
     SetupOpCode(0xC0, &CPU_6502::CPY_imm, MN_CPY_IMM, 2);
+
+    // C1: CMP (zp,x) - Compare a with a zp indexed indirect value - 6, 2
+    SetupOpCode(0xC1, &CPU_6502::CMP_zp_x_ind, MN_CMP_ZP_X, 2);
+
+    // C4: CPY zp - compare y with value stored in zero page - 3, 2
+    SetupOpCode(0xC4, &CPU_6502::CPY_zp, MN_CPY_ZP, 2);
 
     // C5: CMP zp - compare accumulator with memory stored in zero page - 3, 2
     SetupOpCode(0xC5, &CPU_6502::CMP_zp, MN_CMP_ZP, 2);
@@ -1452,6 +2056,9 @@ void CPU_6502::SetupOpcodes()
     // CA: decrement x - 2, 1
     SetupOpCode(0xCA, &CPU_6502::DEX, MN_DEX, 1);
 
+    // CC: CPY a - compare y with value stored in absolute memory - 4, 3
+    SetupOpCode(0xCC, &CPU_6502::CPY_a, MN_CPY_ABS, 3);
+
     // CD: CMP a - Compare accumulator with memory at absolute address - 4, 3
     SetupOpCode(0xCD, &CPU_6502::CMP_a, MN_CMP_ABS, 3);
     
@@ -1460,6 +2067,9 @@ void CPU_6502::SetupOpcodes()
 
     // D0 - BRNE r (Branch relative if z flag is cleared) - 2, 2
     SetupOpCode(0xD0, &CPU_6502::BRNE_r, MN_BRNE_r, 2);
+
+    // D1: CMP (zp), y - Compare a with and an indirectly indexed value in memory - 5, 2
+    SetupOpCode(0xD1, &CPU_6502::CMP_zp_ind_y, MN_CMP_ZP_IND_Y, 2);
 
     // D5: CMP zp,x - compare accumulator with memory stored in zero page offset by x - 4, 2
     SetupOpCode(0xD5, &CPU_6502::CMP_zp_x, MN_CMP_ZP_X, 2);
@@ -1481,6 +2091,9 @@ void CPU_6502::SetupOpcodes()
 
     // E0 - compare x with immediate value - 2, 2
     SetupOpCode(0xE0, &CPU_6502::CPX_imm, MN_CPX_IMM, 2);
+
+    // E1: SBC (zp,x) - Perform a subtract with carry from an indexed indirect value - 6, 2
+    SetupOpCode(0xE1, &CPU_6502::SBC_zp_x_ind, MN_SBC_ZP_X_IND, 2);
 
     // E4: CPX zp - compare x with memory value stored in zero page - 3, 2
     SetupOpCode(0xE4, &CPU_6502::CPX_zp, MN_CPX_ZP, 2);
@@ -1511,6 +2124,9 @@ void CPU_6502::SetupOpcodes()
 
     // F0: BEQ r - branch if equal - 2, 2
     SetupOpCode(0xF0, &CPU_6502::BEQ_r, MN_BEQ, 2);
+
+    // F1: SBC (zp), y - Perform a subtraction with carry between a and an indirectly indexed value in memory - 5, 2
+    SetupOpCode(0xF1, &CPU_6502::SBC_zp_ind_y, MN_SBC_ZP_IND_Y, 2);
 
     // F5: SBC zp, x - Subtract value at zp offset by x from a and store result in a - 4, 2
     SetupOpCode(0xF5, &CPU_6502::SBC_zp_x, MN_SBC_ZP_X, 2);

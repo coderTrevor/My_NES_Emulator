@@ -154,6 +154,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Bus.h" />
     <ClInclude Include="iNES_File.h" />
     <ClInclude Include="Mnemonics.h" />
     <ClInclude Include="RAM.h" />

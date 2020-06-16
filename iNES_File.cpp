@@ -71,6 +71,11 @@ bool iNES_File::OpenFile(char * fileName)
         return false;
     }
 
+    int mapperNumber = (header.flags7.mapperNumberUpper4bits << 4)
+        | header.flags6.mapperNumberLower4bits;
+
+    printf("Mapper %d\n", mapperNumber);
+
     printf("Successfully opened %s\n", fileName);
 
     fclose(pFile);

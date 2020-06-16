@@ -13,7 +13,7 @@
 */
 typedef union FLAGS6
 {
-    struct defs {
+    struct {
         char mirroring : 1;
         bool batBackedRAM : 1;
         bool trainerPresent : 1;
@@ -25,7 +25,7 @@ typedef union FLAGS6
 
 typedef union FLAGS7
 {
-    struct defs {
+    struct {
         uint8_t dontCare : 4;
         uint8_t mapperNumberUpper4bits : 4;
     };

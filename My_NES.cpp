@@ -10,7 +10,7 @@
 
 int main(int argc, char* argv[])
 {
-    Bus bus;
+    //Bus bus;
     CPU_6502 cpu;
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
@@ -103,19 +103,19 @@ int main(int argc, char* argv[])
 
     //ram.loadHexDump(mySnakeGame);
 
-    iNES_File ROM("nestest.nes");
+    iNES_File ROM("01-basics.nes");
 
     // TEMP:
     // Insert the prg data into the RAM
     memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
-    memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
+    //memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
 
     // Create the status monitor
     StatusMonitor statusMonitor(&ram, &cpu);
 
     cpu.Reset();
 
-    cpu.PC = 0xC000;
+    //cpu.PC = 0xC000;
 
     while (statusMonitor.EventLoop())
     {
