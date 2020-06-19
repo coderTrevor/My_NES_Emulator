@@ -2,15 +2,42 @@
 #include "Bus.h"
 #include "CPU_6502.h"
 #include "RAM.h"
+#include "System.h"
+#include "PPU.h"
 #include <SDL.h>
 
+#ifdef SIMPLE_SYSTEM
 #define STATUS_MONITOR_WIDTH    640
 #define STATUS_MONITOR_HEIGHT   480
+#else
+#define STATUS_MONITOR_WIDTH    640
+#define STATUS_MONITOR_HEIGHT   480
+#endif
+
+#define SIMPLE_DISPLAY_PIXEL_SCALE 8
+#define SIMPLE_DISPLAY_X           8
+#define SIMPLE_DISPLAY_Y           8
+#define SIMPLE_DISPLAY_WIDTH       32
+#define SIMPLE_DISPLAY_HEIGHT      32
+extern SDL_Rect simpleDisplayRect;
+
+#define NES_DISPLAY_PIXEL_SCALE 1
+#define NES_DISPLAY_X       8
+#define NES_DISPLAY_Y       8
+#define NES_DISPLAY_WIDTH   256
+#define NES_DISPLAY_HEIGHT  240
+#define NES_PATTERN_WIDTH   128
+#define NES_PATTERN_HEIGHT  128
+#define NES_MARGIN          8
+extern SDL_Rect nesDisplayRect;
+extern SDL_Rect pattern1Rect;
+extern SDL_Rect pattern2Rect;
 
 class StatusMonitor
 {
 public:
     StatusMonitor(RAM *pRAM, CPU_6502 *pCPU);
+    StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU);
     ~StatusMonitor();
 
     bool EventLoop();
@@ -76,10 +103,13 @@ public:
 
     RAM *pRAM;
     CPU_6502 *pCPU;
+    PPU *pPPU;
 
     bool cpuRunning;
 
 protected:
+    void StatusMonitor::CopyTileToPixels(SDL_PixelFormat *format, uint8_t *pTileLSB, uint8_t *pTileMSB, uint32_t *pPixels, uint32_t tileX, uint32_t tileY);
+    void DrawPattern(SDL_Surface *pSurface, uint8_t *pPatternMemory);
     void DrawStatusReg(char *regName, bool set, int x, int y);
     void DrawReg(char *regName, uint16_t value, int x, int y, bool showDecimal = true);
     void SetupColors();

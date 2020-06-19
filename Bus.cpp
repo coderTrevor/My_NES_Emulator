@@ -44,7 +44,7 @@ void Bus::write(uint16_t addr, uint8_t data)
             if (addr >= 0x6000 && addr <= 0x6100)
             {
                 //pCPU->running = false;
-                printf("%s\n", &((RAM *)(peripherals[0].pPeripheral))->mem[0x6004]);
+                printf("%s\n", &((RAM *)(peripherals[1].pPeripheral))->mem[0x6004]);
             }
 
             return;

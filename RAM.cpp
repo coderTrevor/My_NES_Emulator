@@ -7,6 +7,15 @@
 RAM::RAM(Bus * pBus, uint16_t addressStart, uint16_t addressEnd)
     : Peripheral(pBus, addressStart, addressEnd)
 {
+    actualSize = addressEnd - addressStart;
+    mirrorMask = actualSize - 1;
+}
+
+RAM::RAM(Bus * pBus, uint16_t addressStart, uint16_t addressEnd, uint16_t actualSize)
+    : Peripheral(pBus, addressStart, addressEnd)
+{
+    this->actualSize = actualSize;
+    mirrorMask = actualSize - 1;
 }
 
 RAM::~RAM()

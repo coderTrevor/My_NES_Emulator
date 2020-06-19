@@ -7,11 +7,13 @@
 #include "RAM.h"
 #include "StatusMonitor.h"
 #include "iNES_File.h"
+#include "System.h"
 
-int main(int argc, char* argv[])
+#ifdef SYSTEM_SIMPLE
+void SimpleMain()
 {
-    //Bus bus;
     CPU_6502 cpu;
+
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     uint16_t startAddress = 0x600;
@@ -19,12 +21,7 @@ int main(int argc, char* argv[])
     // Put start address (0x600) at 0xFFFC and 0xFFFD
     ram.mem[0xFFFC] = startAddress & 0xFF;  // 0x00;
     ram.mem[0xFFFD] = startAddress >> 8;    // 0x06;
-
-    // TEMP: make that 0xC000 
-    startAddress = 0xC000;
-    ram.mem[0xFFFC] = startAddress & 0xFF;  // 0x00;
-    ram.mem[0xFFFD] = startAddress >> 8;    // 0xC0;
-
+     
     // load in a hex dump
     //char dump[] = "0600: a9 01 8d 00 02 a9 05 8d 01 02 a9 08 8d 02 02 ";
     //char dump[] = "0600: a9 80 85 01 65 01";
@@ -37,29 +34,30 @@ int main(int argc, char* argv[])
     //char dump[] = "0600: 20 09 06 20 0c 06 20 12 06 a2 00 60 e8 e0 05 d0 0610: fb 60 00";
     //char dump[] = "0600: a9 05 38 e9 05";
     //char dump[] = "0600: a9 05 38 e9 03";
+
     char dump[] = "0600: a9 80 85 00 a9 02 85 01 a9 f3 85 02 a9 00 85 03 "
         "0610: a9 03 85 04 84 90 38 91 00 18 91 03 ";
 
     char drNicksSnakeGame[] = "0600: 20 06 06 20 38 06 20 0d 06 20 2a 06 60 a9 02 85"
-       " 0610: 02 a9 04 85 03 a9 11 85 10 a9 10 85 12 a9 0f 85"
-       " 0620: 14 a9 04 85 11 85 13 85 15 60 a5 fe 85 00 a5 fe"
-       " 0630: 29 03 18 69 02 85 01 60 20 4d 06 20 8d 06 20 c3"
-       " 0640: 06 20 19 07 20 20 07 20 2d 07 4c 38 06 a5 ff c9"
-       " 0650: 77 f0 0d c9 64 f0 14 c9 73 f0 1b c9 61 f0 22 60"
-       " 0660: a9 04 24 02 d0 26 a9 01 85 02 60 a9 08 24 02 d0"
-       " 0670: 1b a9 02 85 02 60 a9 01 24 02 d0 10 a9 04 85 02"
-       " 0680: 60 a9 02 24 02 d0 05 a9 08 85 02 60 60 20 94 06"
-       " 0690: 20 a8 06 60 a5 00 c5 10 d0 0d a5 01 c5 11 d0 07"
-       " 06a0: e6 03 e6 03 20 2a 06 60 a2 02 b5 10 c5 10 d0 06"
-       " 06b0: b5 11 c5 11 f0 09 e8 e8 e4 03 f0 06 4c aa 06 4c"
-       " 06c0: 35 07 60 a6 03 ca 8a b5 10 95 12 ca 10 f9 a5 02"
-       " 06d0: 4a b0 09 4a b0 19 4a b0 1f 4a b0 2f a5 10 38 e9"
-       " 06e0: 20 85 10 90 01 60 c6 11 a9 01 c5 11 f0 28 60 e6"
-       " 06f0: 10 a9 1f 24 10 f0 1f 60 a5 10 18 69 20 85 10 b0"
-       " 0700: 01 60 e6 11 a9 06 c5 11 f0 0c 60 c6 10 a5 10 29"
-       " 0710: 1f c9 1f f0 01 60 4c 35 07 a0 00 a5 fe 91 00 60"
-       " 0720: a6 03 a9 00 81 10 a2 00 a9 01 81 10 60 a2 00 ea"
-       " 0730: ea ca d0 fb 60 ";
+        " 0610: 02 a9 04 85 03 a9 11 85 10 a9 10 85 12 a9 0f 85"
+        " 0620: 14 a9 04 85 11 85 13 85 15 60 a5 fe 85 00 a5 fe"
+        " 0630: 29 03 18 69 02 85 01 60 20 4d 06 20 8d 06 20 c3"
+        " 0640: 06 20 19 07 20 20 07 20 2d 07 4c 38 06 a5 ff c9"
+        " 0650: 77 f0 0d c9 64 f0 14 c9 73 f0 1b c9 61 f0 22 60"
+        " 0660: a9 04 24 02 d0 26 a9 01 85 02 60 a9 08 24 02 d0"
+        " 0670: 1b a9 02 85 02 60 a9 01 24 02 d0 10 a9 04 85 02"
+        " 0680: 60 a9 02 24 02 d0 05 a9 08 85 02 60 60 20 94 06"
+        " 0690: 20 a8 06 60 a5 00 c5 10 d0 0d a5 01 c5 11 d0 07"
+        " 06a0: e6 03 e6 03 20 2a 06 60 a2 02 b5 10 c5 10 d0 06"
+        " 06b0: b5 11 c5 11 f0 09 e8 e8 e4 03 f0 06 4c aa 06 4c"
+        " 06c0: 35 07 60 a6 03 ca 8a b5 10 95 12 ca 10 f9 a5 02"
+        " 06d0: 4a b0 09 4a b0 19 4a b0 1f 4a b0 2f a5 10 38 e9"
+        " 06e0: 20 85 10 90 01 60 c6 11 a9 01 c5 11 f0 28 60 e6"
+        " 06f0: 10 a9 1f 24 10 f0 1f 60 a5 10 18 69 20 85 10 b0"
+        " 0700: 01 60 e6 11 a9 06 c5 11 f0 0c 60 c6 10 a5 10 29"
+        " 0710: 1f c9 1f f0 01 60 4c 35 07 a0 00 a5 fe 91 00 60"
+        " 0720: a6 03 a9 00 81 10 a2 00 a9 01 81 10 60 a2 00 ea"
+        " 0730: ea ca d0 fb 60 ";
 
     char mySnakeGame[] = "0600: 20 8f 06 a2 ff 9a 20 f6 07 a9 00 a2 0f a0 0f 20 "
         "0610: d2 07 a9 01 85 03 86 20 84 60 20 72 07 20 72 07 "
@@ -101,26 +99,59 @@ int main(int argc, char* argv[])
         "0850: 40 05 9d 60 05 9d 80 05 9d a0 05 9d c0 05 9d e0 "
         "0860: 05 d0 9d 60 ";
 
-    //ram.loadHexDump(mySnakeGame);
-
-    iNES_File ROM("01-basics.nes");
-
-    // TEMP:
-    // Insert the prg data into the RAM
-    memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
-    //memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
+    ram.loadHexDump(mySnakeGame);
 
     // Create the status monitor
     StatusMonitor statusMonitor(&ram, &cpu);
 
     cpu.Reset();
 
-    //cpu.PC = 0xC000;
+    while (statusMonitor.EventLoop())
+    {
+
+    }
+}
+#endif
+
+#ifdef SYSTEM_NES
+void NES_Main()
+{
+    CPU_6502 cpu;
+    PPU ppu(&(cpu.bus));
+    RAM ram(&(cpu.bus), 0, 0xFFff);
+
+    iNES_File ROM("01-basics.nes");
+    //iNES_File ROM("Super Mario Bros. (World).nes");
+    //iNES_File ROM("DK.nes");
+
+    // TEMP:
+    // Insert the prg data into the RAM
+    memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
+    //memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
+
+    // TEMP:
+    // Insert the CHR data into the PPU pattern table
+    memcpy(ppu.pPatternTable->mem, ROM.pCHRdata, ROM.chrRomSize);
+
+    // Create the status monitor
+    StatusMonitor statusMonitor(&ram, &cpu, &ppu);
+
+    cpu.Reset();
 
     while (statusMonitor.EventLoop())
     {
 
     }
+}
+#endif
+
+int main(int argc, char* argv[])
+{
+#ifdef SYSTEM_SIMPLE
+    SimpleMain();
+#else
+    NES_Main();
+#endif
 
     return 0;
 }
