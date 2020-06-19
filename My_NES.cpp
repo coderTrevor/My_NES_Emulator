@@ -119,7 +119,7 @@ void SimpleMain()
 void NES_Main()
 {
     CPU_6502 cpu;
-    PPU ppu(&(cpu.bus));
+    PPU ppu(&cpu);
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     //iNES_File ROM("01-basics.nes");

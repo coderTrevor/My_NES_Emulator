@@ -396,6 +396,9 @@ bool StatusMonitor::EventLoop()
 
         pPPU->statusReg.vBlank = true;
 
+        if (pPPU->controlReg.generateNMI_OnVBlank)
+            pCPU->TriggerNMI();
+
         for (int y = 240; y <= 261; ++y)
         {
             for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)

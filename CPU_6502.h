@@ -43,6 +43,8 @@ public:
 
     bool Step();
 
+    void TriggerNMI();
+
     // registers
     uint8_t a;
     uint8_t x;
@@ -230,5 +232,6 @@ protected:
 
     // temp
     int opsHandled;
+    bool nmi;
 };
 

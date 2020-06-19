@@ -5,6 +5,7 @@
 #include "Bus.h"
 #include "RAM.h"
 #include "Palette.h"
+#include "CPU_6502.h"
 #include <SDL.h>
 
 // PPU Registers:
@@ -58,7 +59,7 @@ typedef union
     struct
     {
         uint8_t baseNametableAddress : 2;
-        bool VRAM_AddressInc : 1;
+        bool VRAM_AddressIncBy32 : 1;
         bool spritePatternTableSelect : 1;
         bool backgroundPatternTableSelect : 1;
         bool spriteSize : 1;
@@ -136,7 +137,7 @@ class PPU :
     public Peripheral
 {
 public:
-    PPU(Bus *pCPU_Bus);
+    PPU(CPU_6502 *pCPU);
     ~PPU();
 
     uint8_t read(uint16_t address);
@@ -166,6 +167,7 @@ public:
     STATUS_REG  statusReg;
     MASK_REG    maskReg;
 
+    CPU_6502 *pCPU;
 
     uint16_t VRAM_Address;  // Address on the PPU bus that the CPU will access
     bool lowByteActive;     // True if the next access will modify the low byte, false if accessing the high byte

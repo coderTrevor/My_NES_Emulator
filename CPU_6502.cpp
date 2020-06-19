@@ -10,6 +10,7 @@ CPU_6502::CPU_6502()
     printf("%d of 151 opcodes implemented, %02.1f%%\n", opsHandled, opsHandled * 100.0 / 151);
 
     running = true;
+    nmi = false;
 
     bus.pCPU = this;
 }
@@ -35,6 +36,34 @@ void CPU_6502::Reset()
 
 bool CPU_6502::Step()
 {
+    // Check for NMI
+    if (nmi)
+    {
+        printf("Handling NMI\n");
+        printf("PC - 0x%X\n", PC);
+
+        // Push return value onto stack, high byte then low byte
+        bus.write(0x100 + SP, PC >> 8);
+        --SP;
+        bus.write(0x100 + SP, (uint8_t)(PC & 0xFF));
+        --SP;
+
+        // Push processor status onto stack
+        // Set bit 5 but leave bit 4 clear (See https://wiki.nesdev.com/w/index.php/Status_flags#The_B_flag)
+        bus.write(0x100 + SP, flags.allFlags & 0x10);
+        --SP;
+
+        // Load PC from $FFFA-$FFFB
+        PC = bus.read(0xFFFA);
+        PC |= (uint16_t)(bus.read(0xFFFB)) << 8;
+        
+        printf("New PC - 0x%X\n", PC);
+
+        debugOutput = true;
+        nmi = false;
+        return true;
+    }
+
     // get the current opcode
     opcode = bus.read(PC++);
 
@@ -77,6 +106,11 @@ bool CPU_6502::Step()
         return false;
 
     return true;
+}
+
+void CPU_6502::TriggerNMI()
+{
+    nmi = true;
 }
 
 // operations
@@ -577,7 +611,7 @@ void CPU_6502::ROL_a_x()
 void CPU_6502::RTI()
 {
     ++SP;
-    flags.allFlags = bus.read(0x100 + SP);
+    flags.allFlags = bus.read(0x100 + SP) & 0xCF; // ignore bits 5 and 4
 
     ++SP;
     // pop off the low byte of the return address
@@ -586,6 +620,11 @@ void CPU_6502::RTI()
     // pop off the high byte
     ++SP;
     newPC += bus.read(0x100 + SP) << 8;
+
+    PC = newPC;
+    
+    running = false;
+    printf("\nRet PC - 0x%X\n\n", PC);
 }
 
 // 41: EOR (zp,x) - Perform EOR with a value from a zp indexed indirect address - 6, 2

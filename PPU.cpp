@@ -3,14 +3,14 @@
 
 
 // PPU is mapped from 0x2000 - 0x3FFF on the CPU bus
-PPU::PPU(Bus *pCPU_Bus)
-    : Peripheral(pCPU_Bus, 0x2000, 0x3FFF)
+PPU::PPU(CPU_6502 *pCPU)
+    : Peripheral(&pCPU->bus, 0x2000, 0x3FFF)
 {
     // 8 KB pattern table
     pPatternTable = new RAM(&PPU_Bus, 0, 0x1FFF);
  
     // 2 KB name table
-    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x2FFF, 2048);
+    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x3EFF, 2048);
 
     // 256 byytes of palette data
     pPalette = new Palette(&PPU_Bus);
@@ -45,8 +45,11 @@ PPU::PPU(Bus *pCPU_Bus)
     scanline = 0;
     paused = false;
     lowByteActive = false;
+    this->pCPU = pCPU;
+    statusReg.entireRegister = 0;
+    controlReg.entireRegister = 0;
+    maskReg.entireRegister = 0;
 }
-
 
 PPU::~PPU()
 {
@@ -71,8 +74,8 @@ uint8_t PPU::read(uint16_t address)
 
     address &= 0x7;
 
-    uint8_t oldStatus;
-
+    uint8_t data = 0;
+  
     switch (address)
     {
         case PPUCTRL:
@@ -85,9 +88,9 @@ uint8_t PPU::read(uint16_t address)
 
         case  PPUSTATUS:
             // VSO - ----vblank(V), sprite 0 hit(S), sprite overflow(O); read resets write pair for $2005 / $2006
-            oldStatus = statusReg.entireRegister;
+            data = statusReg.entireRegister;
             statusReg.vBlank = false;
-            return oldStatus;
+            lowByteActive = false;
             break;
 
         case OAMADDR:
@@ -104,14 +107,21 @@ uint8_t PPU::read(uint16_t address)
 
         case PPUADDR:
             // aaaa aaaa	PPU read / write address(two writes : most significant byte, least significant byte)
-            paused = true;
-            printf("PPUADDR read\n");
+            //paused = true;
+            printf("PPUADDR read???\n");
             break;
 
         case PPUDATA:
             // dddd dddd	PPU data read / write
-            paused = true;
-            printf("PPUDATA read\n");
+            //paused = true;
+            printf("PPUDATA read from 0x%X\n", VRAM_Address);
+            data = PPU_Bus.read(VRAM_Address);
+
+            if (controlReg.VRAM_AddressIncBy32)
+                VRAM_Address += 32;
+            else
+                ++VRAM_Address;
+
             break;
 
         default:
@@ -119,7 +129,7 @@ uint8_t PPU::read(uint16_t address)
             break;
     }
 
-    return uint8_t(0);
+    return data;
 }
 
 void PPU::write(uint16_t address, uint8_t value)
@@ -139,6 +149,16 @@ void PPU::write(uint16_t address, uint8_t value)
     {
         case PPUCTRL:
             // 	VPHB SINN	NMI enable(V), PPU master / slave(P), sprite height(H), background tile select(B), sprite tile select(S), increment mode(I), nametable select(NN)
+            
+            // Program can generate multiple NMI's by toggling controlReg.generateNMI_OnVBlank and not reading PPUSTATUS during VBlank
+            if (!controlReg.generateNMI_OnVBlank && statusReg.vBlank)
+            {
+                CONTROL_REG newReg;
+                newReg.entireRegister = value;
+                if (newReg.generateNMI_OnVBlank)
+                    pCPU->TriggerNMI();                    
+            }
+
             controlReg.entireRegister = value;
             printf("PPUCTRL: 0x%X\n", value);
             break;
@@ -181,7 +201,7 @@ void PPU::write(uint16_t address, uint8_t value)
             lowByteActive = !lowByteActive;
 
             printf("PPUADDR 0x%X\n", VRAM_Address);
-            paused = true;
+            //paused = true;
             break;
 
         case PPUDATA:
@@ -193,7 +213,7 @@ void PPU::write(uint16_t address, uint8_t value)
 
             PPU_Bus.write(VRAM_Address, value);
             
-            if (controlReg.VRAM_AddressInc)
+            if (controlReg.VRAM_AddressIncBy32)
                 VRAM_Address += 32;
             else
                 ++VRAM_Address;
@@ -244,6 +264,9 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
 
     uint8_t *pPatternMemory = pPatternTable->mem;
 
+    if (controlReg.backgroundPatternTableSelect)
+        pPatternMemory += 0x1000;
+
     // Get tile data
 
     // Extract data for the tile
@@ -280,8 +303,6 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
         pixelOffset += 256 - 8;
     }
 }
-
-
 
 void PPU::UpdateImage()
 {
