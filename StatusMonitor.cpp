@@ -201,7 +201,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU)
     SDL_FillRect(screenSurface, NULL, colorBlack);
 }
 
-void plotPixel(uint8_t pixel, SDL_PixelFormat *format, uint32_t *address)
+inline void plotPixel(uint8_t pixel, SDL_PixelFormat *format, uint32_t *address)
 {
     uint32_t white = SDL_MapRGB(format, 255, 255, 255);
     uint32_t lightGray = SDL_MapRGB(format, 128, 128, 128);
@@ -232,12 +232,13 @@ void StatusMonitor::CopyTileToPixels(SDL_PixelFormat *format, uint8_t *pTileLSB,
 {
     uint32_t pixelOffset = (tileY * 128 * 8) + (tileX * 8);
 
+    // for each row
     for (int y = 0; y < 8; ++y)
     {
         uint8_t lowBytes = pTileLSB[y];
         uint8_t highBytes = pTileMSB[y];
 
-        // Consider each pixel
+        // plot each of the 8 pixels in the tile row
         uint8_t pix1 = lowBytes & 1 | ((highBytes & 1) << 1);
         uint8_t pix2 = (lowBytes & 2) >> 1 | (highBytes & 2);
         uint8_t pix3 = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
@@ -256,19 +257,7 @@ void StatusMonitor::CopyTileToPixels(SDL_PixelFormat *format, uint8_t *pTileLSB,
         plotPixel(pix3, format, &pPixels[pixelOffset++]);
         plotPixel(pix2, format, &pPixels[pixelOffset++]);
         plotPixel(pix1, format, &pPixels[pixelOffset++]);
-        /*for (int x = 0; x < 8; ++x)
-        {
-            if (y % 2 == 0)
-            {
-                pPixels[pixelOffset++] = white;
-                pPixels[pixelOffset++] = black;
-            }
-            else
-            {
-                pPixels[pixelOffset++] = black;
-                pPixels[pixelOffset++] = white;
-            }
-        }*/
+
         pixelOffset += 120;
     }
 }
@@ -296,8 +285,7 @@ void StatusMonitor::DrawPattern(SDL_Surface *pSurface, uint8_t *pPatternMemory)
             SDL_memcpy(tileMSB, pPatternMemory + offset + 8, 8);
 
             // Copy tile to surface
-            //if((x+y) % 2 == 0)
-                CopyTileToPixels(pSurface->format, tileLSB, tileMSB, (uint32_t *)pSurface->pixels, x, y);
+            CopyTileToPixels(pSurface->format, tileLSB, tileMSB, (uint32_t *)pSurface->pixels, x, y);
 
             offset += 16;
         }
@@ -316,6 +304,8 @@ void StatusMonitor::DrawDisplay()
         nesDisplayRect.h + 2 };
     
     SDL_FillRect(screenSurface, &border, colorWhite);
+
+    pPPU->UpdateImage();
 
     // Draw the tv display
     SDL_BlitScaled(pPPU->pTV_Display, NULL, screenSurface, &nesDisplayRect);
@@ -375,11 +365,14 @@ bool StatusMonitor::EventLoop()
                     case SDLK_g:
                         cpuRunning = true;
                         pCPU->running = true;
+                        pPPU->paused = false;
                         break;
                 }
 
+#ifdef SYSTEM_SIMPLE
                 // write key to 0xff
                 pCPU->bus.write(0xff, event.key.keysym.sym);
+#endif
                 break;
             case SDL_QUIT:
                 return false;
@@ -389,10 +382,31 @@ bool StatusMonitor::EventLoop()
 
     Draw();
 
-    if (cpuRunning && pCPU->running)
+    if (cpuRunning && pCPU->running && !pPPU->paused)
     {
-        for (int i = 0; i < 100 && cpuRunning && pCPU->running; ++i)
-            cpuRunning = pCPU->Step();
+        for (int y = 0; y < 240; ++y)
+        {
+            for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+                cpuRunning = pCPU->Step();
+
+            // That's probably enough cycles for an end of line
+            pPPU->scanline++;
+            //printf("scanline %d\n", pPPU->scanline);
+        }
+
+        pPPU->statusReg.vBlank = true;
+
+        for (int y = 240; y <= 261; ++y)
+        {
+            for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+                cpuRunning = pCPU->Step();
+
+            // That's probably enough cycles for an end of line
+            pPPU->scanline++;
+        }
+        pPPU->scanline = 0;
+        printf("End of frame\n");
+        //pPPU->statusReg.vBlank = false;
     }
 
     return true;

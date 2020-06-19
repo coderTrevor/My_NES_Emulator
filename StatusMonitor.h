@@ -10,8 +10,8 @@
 #define STATUS_MONITOR_WIDTH    640
 #define STATUS_MONITOR_HEIGHT   480
 #else
-#define STATUS_MONITOR_WIDTH    640
-#define STATUS_MONITOR_HEIGHT   480
+#define STATUS_MONITOR_WIDTH    800
+#define STATUS_MONITOR_HEIGHT   600
 #endif
 
 #define SIMPLE_DISPLAY_PIXEL_SCALE 8
@@ -21,7 +21,7 @@
 #define SIMPLE_DISPLAY_HEIGHT      32
 extern SDL_Rect simpleDisplayRect;
 
-#define NES_DISPLAY_PIXEL_SCALE 1
+#define NES_DISPLAY_PIXEL_SCALE 2
 #define NES_DISPLAY_X       8
 #define NES_DISPLAY_Y       8
 #define NES_DISPLAY_WIDTH   256

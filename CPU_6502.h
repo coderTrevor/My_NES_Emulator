@@ -7,18 +7,20 @@
 #define IS_NEGATIVE(c) ((c & 0x80) == 0x80)
 #define IS_POSITIVE(c) ((c & 0x80) != 0x80)
 
+extern bool debugOutput;
+
 typedef union FLAGS
 {
     struct
     {
-        bool negative : 1;
-        bool overflow : 1;
-        bool ignored : 1;
-        bool breakCommand : 1;
-        bool decimal : 1;
-        bool irqDisable : 1;
-        bool zero : 1;
         bool carry : 1;
+        bool zero : 1;
+        bool irqDisable : 1;
+        bool decimal : 1;
+        bool breakCommand : 1;
+        bool ignored : 1;
+        bool overflow : 1;
+        bool negative : 1;
     };
 
     char allFlags;

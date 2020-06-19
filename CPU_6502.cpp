@@ -38,7 +38,8 @@ bool CPU_6502::Step()
     // get the current opcode
     opcode = bus.read(PC++);
 
-    printf("opcode: 0x%X - %s ", opcode, mnemonics[opcode]);
+    if(debugOutput)
+        printf("opcode: 0x%X - %s ", opcode, mnemonics[opcode]);
     
     // see how many bytes are in the operand
     int operandBytes = opcodeBytes[opcode] - 1;
@@ -56,11 +57,15 @@ bool CPU_6502::Step()
         }
         else if (operandBytes != 1)
             printf("Invalid operand size for opcode 0x%X!\n", opcode);
-
-        printf(" 0x%X\n", operand);
+        
+        if (debugOutput)
+            printf(" 0x%X\n", operand);
     }
     else
-        printf("\n");
+    {
+        if (debugOutput)
+            printf("\n");
+    }
 
     
     // Call the function associated with this opcode

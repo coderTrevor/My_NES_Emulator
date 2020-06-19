@@ -9,6 +9,8 @@
 #include "iNES_File.h"
 #include "System.h"
 
+bool debugOutput = false;
+
 #ifdef SYSTEM_SIMPLE
 void SimpleMain()
 {
@@ -120,14 +122,26 @@ void NES_Main()
     PPU ppu(&(cpu.bus));
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
-    iNES_File ROM("01-basics.nes");
+    //iNES_File ROM("01-basics.nes");
+    iNES_File ROM("nestest.nes");
     //iNES_File ROM("Super Mario Bros. (World).nes");
     //iNES_File ROM("DK.nes");
 
     // TEMP:
     // Insert the prg data into the RAM
-    memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
-    //memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
+    switch (ROM.prgSize)
+    {
+        case (32 * 1024):
+            memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
+            break;
+        case (16 * 1024):
+            memcpy(&ram.mem[0x8000], ROM.pPRGdata, ROM.prgSize);
+            memcpy(&ram.mem[0xC000], ROM.pPRGdata, ROM.prgSize);
+            break;
+        default:
+            printf("Don't know how to map this ROM!\n");
+            return;
+    }
 
     // TEMP:
     // Insert the CHR data into the PPU pattern table

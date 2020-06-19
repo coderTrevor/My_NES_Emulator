@@ -35,6 +35,103 @@
 // aaaa aaaa	OAM DMA high address
 #define OAMDMA	    0x4014
 
+/* Control register
+7  bit  0
+---- ----
+VPHB SINN
+|||| ||||
+|||| ||++- Base nametable address
+|||| ||    (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
+|||| |+--- VRAM address increment per CPU read/write of PPUDATA
+|||| |     (0: add 1, going across; 1: add 32, going down)
+|||| +---- Sprite pattern table address for 8x8 sprites
+||||       (0: $0000; 1: $1000; ignored in 8x16 mode)
+|||+------ Background pattern table address (0: $0000; 1: $1000)
+||+------- Sprite size (0: 8x8 pixels; 1: 8x16 pixels)
+|+-------- PPU master/slave select
+|          (0: read backdrop from EXT pins; 1: output color on EXT pins)
++--------- Generate an NMI at the start of the
+vertical blanking interval (0: off; 1: on)
+*/
+typedef union
+{
+    struct
+    {
+        uint8_t baseNametableAddress : 2;
+        bool VRAM_AddressInc : 1;
+        bool spritePatternTableSelect : 1;
+        bool backgroundPatternTableSelect : 1;
+        bool spriteSize : 1;
+        bool bossWorkerSelect : 1;
+        bool generateNMI_OnVBlank : 1;
+    };
+
+    uint8_t entireRegister;
+} CONTROL_REG;
+
+/* Mask register:
+7  bit  0
+---- ----
+BGRs bMmG
+|| || || ||
+|| || || | +-Greyscale(0: normal color, 1 : produce a greyscale display)
+|| || || +-- 1: Show background in leftmost 8 pixels of screen, 0 : Hide
+|| || | +-- - 1 : Show sprites in leftmost 8 pixels of screen, 0 : Hide
+|| || +---- 1 : Show background
+|| | +------ 1 : Show sprites
+|| +------ - Emphasize red
+| +--------Emphasize green
++ -------- - Emphasize blue */
+
+typedef union
+{
+    struct
+    {
+        bool greyscale : 1;
+        bool showLeftmostBackground : 1;
+        bool showLeftmostSprites : 1;
+        bool showBackground : 1;
+        bool showSprites : 1;
+        bool emphasizeRed : 1;
+        bool emphasizeGreen : 1;
+        bool emphasizeBlue : 1;
+    };
+
+    uint8_t entireRegister;
+} MASK_REG;
+
+/* Status register:
+7  bit  0
+---- ----
+VSO. ....
+|| || || ||
+|| | +-++++ - Least significant bits previously written into a PPU register
+|| | (due to register not being updated for this address)
+|| +------ - Sprite overflow.The intent was for this flag to be set
+|| whenever more than eight sprites appear on a scanline, but a
+|| hardware bug causes the actual behavior to be more complicated
+|| and generate false positives as well as false negatives; see
+|| PPU sprite evaluation.This flag is set during sprite
+|| evaluation and cleared at dot 1 (the second dot) of the
+|| pre - render line.
+| +--------Sprite 0 Hit.Set when a nonzero pixel of sprite 0 overlaps
+| a nonzero background pixel; cleared at dot 1 of the pre - render
+| line.Used for raster timing.
++ -------- - Vertical blank has started(0: not in vblank; 1: in vblank).
+Set at dot 1 of line 241 (the line *after* the post - render
+                          line); cleared after reading $2002 and at dot 1 of the pre - render line.*/
+typedef union
+{
+    struct
+    {
+        uint8_t unused : 5; // TODO?
+        bool spriteOverflow : 1;
+        bool sprite0_Hit : 1;
+        bool vBlank : 1;
+    };
+    uint8_t entireRegister;
+} STATUS_REG;
+
 class PPU :
     public Peripheral
 {
@@ -44,6 +141,8 @@ public:
 
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
+    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, SDL_PixelFormat *format);
+    void UpdateImage();
 
     // PPU has its own bus in addition to the CPU bus
     Bus PPU_Bus;
@@ -57,8 +156,21 @@ public:
     // Palette data from 0x3F00 - 0x3FFF
     Palette *pPalette;
 
+    // Surfaces to draw to
     SDL_Surface *pTV_Display;
     SDL_Surface *pPattern1;
     SDL_Surface *pPattern2;
+
+    // Registers
+    CONTROL_REG controlReg;
+    STATUS_REG  statusReg;
+    MASK_REG    maskReg;
+
+
+    uint16_t VRAM_Address;  // Address on the PPU bus that the CPU will access
+    bool lowByteActive;     // True if the next access will modify the low byte, false if accessing the high byte
+
+    int scanline;
+    bool paused;
 };
 
