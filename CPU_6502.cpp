@@ -543,20 +543,17 @@ void CPU_6502::ROL_zp_x()
     // handle zero page wrap-around
     uint16_t address = (operand + x) & 0xFF;
 
-    uint8_t value = bus.read(address);
-    uint8_t newValue = value << 1;
+    uint8_t oldValue = bus.read(address);
+    uint8_t newValue = oldValue << 1;
 
     if (flags.carry)
         newValue |= 1;
 
-    flags.carry = IS_NEGATIVE(newValue);
+    flags.carry = IS_NEGATIVE(oldValue);
+    flags.negative = IS_NEGATIVE(newValue);
+    flags.zero = (newValue == 0);
 
-    value = newValue;
-
-    flags.negative = IS_NEGATIVE(value);
-    flags.zero = (value == 0);
-
-    bus.write(address, value);
+    bus.write(address, newValue);
 }
 
 // 38: set carry - 2, 1
