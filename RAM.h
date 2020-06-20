@@ -2,6 +2,8 @@
 #include "peripheral.h"
 #include <stdio.h>
 
+extern bool debugOutput;
+
 class RAM :
     public Peripheral
 {
@@ -21,7 +23,9 @@ public:
     {
         //mem[addr & mirrorMask] = data;
         mem[addr] = data;
-        printf("mem[0x%X] = 0x%X\n", addr, data);
+        
+        if(debugOutput)
+            printf("mem[0x%X] = 0x%X\n", addr, data);
     }
 
     void loadHexDump(char *hexDump);

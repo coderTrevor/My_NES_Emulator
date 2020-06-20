@@ -39,8 +39,9 @@ bool CPU_6502::Step()
     // Check for NMI
     if (nmi)
     {
-        printf("Handling NMI\n");
-        printf("PC - 0x%X\n", PC);
+        if(debugOutput)
+            printf("Handling NMI\n");
+            //printf("PC - 0x%X\n", PC);
 
         // Push return value onto stack, high byte then low byte
         bus.write(0x100 + SP, PC >> 8);
@@ -57,7 +58,7 @@ bool CPU_6502::Step()
         PC = bus.read(0xFFFA);
         PC |= (uint16_t)(bus.read(0xFFFB)) << 8;
         
-        printf("New PC - 0x%X\n", PC);
+        //printf("New PC - 0x%X\n", PC);
 
         //debugOutput = true;
         nmi = false;
@@ -291,7 +292,6 @@ void CPU_6502::BPL_r()
 // 11: ORA (zp),y - Inclusive OR between a and an indirectly indexed value in memory - 5, 2
 void CPU_6502::ORA_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -412,20 +412,17 @@ void CPU_6502::AND_zp()
 // 26: ROL zp - rotate value in zero page memory one bit to the left - 5, 2
 void CPU_6502::ROL_zp()
 {
-    uint8_t value = bus.read(operand);
-    uint8_t newValue = value << 1;
+    uint8_t oldValue = bus.read(operand);
+    uint8_t newValue = oldValue << 1;
 
     if (flags.carry)
-        newValue |= 1;
+        newValue += 1;
 
-    flags.carry = IS_NEGATIVE(newValue);
+    flags.carry = IS_NEGATIVE(oldValue);
+    flags.negative = IS_NEGATIVE(newValue);
+    flags.zero = (newValue == 0);
 
-    value = newValue;
-
-    flags.negative = IS_NEGATIVE(value);
-    flags.zero = (value == 0);
-
-    bus.write(operand, value);
+    bus.write(operand, newValue);
 }
 
 // 28: PLP i - pull processor status flags from stack - 4, 1
@@ -496,7 +493,7 @@ void CPU_6502::ROL_a()
     if (flags.carry)
         newValue |= 1;
 
-    flags.carry = IS_NEGATIVE(newValue);
+    flags.carry = IS_NEGATIVE(value);
 
     value = newValue;
 
@@ -516,7 +513,6 @@ void CPU_6502::BMI_r()
 // 31: AND (zp),y - Perform logical AND operation between a and an indirectly indexed value in memory - 5, 2
 void CPU_6502::AND_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -598,7 +594,7 @@ void CPU_6502::ROL_a_x()
     if (flags.carry)
         newValue |= 1;
 
-    flags.carry = IS_NEGATIVE(newValue);
+    flags.carry = IS_NEGATIVE(value);
 
     value = newValue;
 
@@ -625,7 +621,7 @@ void CPU_6502::RTI()
     PC = newPC;
     
     //running = false;
-    printf("\nRet PC - 0x%X\n\n", PC);
+    //printf("\nRet PC - 0x%X\n\n", PC);
 }
 
 // 41: EOR (zp,x) - Perform EOR with a value from a zp indexed indirect address - 6, 2
@@ -716,7 +712,6 @@ void CPU_6502::BVC_r()
 // 51: EOR (zp),y - Perform an EOR between a and an indirectly indexed value in memory - 5, 2
 void CPU_6502::EOR_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -813,20 +808,18 @@ void CPU_6502::ADC_zp()
 // 66: ROR zp - Move value stored in zp one bit to the right - 5, 2
 void CPU_6502::ROR_zp()
 {
-    uint8_t value = bus.read(operand);
+    uint8_t oldValue = bus.read(operand);
 
-    uint8_t oldValue = value;
-
-    value >>= 1;
-
+    uint8_t newValue = oldValue >> 1;
+    
     if (flags.carry)
-        value |= 0x80;
+        newValue |= 0x80;
 
-    flags.carry = (oldValue & 1);
-    flags.zero = (value == 0);
-    flags.negative = IS_NEGATIVE(value);
+    flags.carry = ((oldValue & 1) == 1);
+    flags.zero = (newValue == 0);
+    flags.negative = IS_NEGATIVE(newValue);
 
-    bus.write(operand, value);
+    bus.write(operand, newValue);
 }
 
 // 68: PLA s - pull off of stack and into a - 4, 1
@@ -911,7 +904,6 @@ void CPU_6502::BVS_r()
 // 71: ADC (zp),y - Perform an add with carry between a and an indirectly indexed value in memory - 5, 2 
 void CPU_6502::ADC_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -959,7 +951,9 @@ void CPU_6502::SEI()
 // 79: ADC a,y - Perform an add with carry between a and a value in absolute memory offset by y - 4, 3
 void CPU_6502::ADC_a_y()
 {
-    ADC_Generic(a + y);
+    uint16_t address = operand + y;
+
+    ADC_Generic(bus.read(address));
 }
 
 // 7D: ADC a,x - Perform an add with carry between a and a value at an absolute address offset by x - 4, 3
@@ -994,7 +988,7 @@ void CPU_6502::STA_zp_x_ind()
     printf("addr1: 0x%X\n", addr1);
 
     uint16_t address = bus.read(addr1);
-    address += (uint16_t)bus.read(addr1 + 1) << 8;
+    address += (uint16_t)bus.read((addr1 + 1) & 0xFF) << 8;
 
     printf("address: 0x%X\n", address);
 
@@ -1074,9 +1068,8 @@ void CPU_6502::BCC_r()
 // 91: STA(zp), y - store a to indirectly indexed memory - 6, 2
 void CPU_6502::STA_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += (uint16_t)(bus.read((operand + 1) & 0xFF)) << 8;
     address += y;
 
     bus.write(address, a);
@@ -1100,10 +1093,9 @@ void CPU_6502::STA_zp_x()
 // 96: STX zp,y - store x in a zp address offset by y - 4, 2
 void CPU_6502::STX_zp_y()
 {
-    // TODO: Should this wrap-around?
-    uint8_t address = operand + y;
+    uint8_t address = (operand + y) & 0xFF;
 
-    bus.write(address, y);
+    bus.write(address, x);
 }
 
 // 99: STA a,y - Store a to absolute address + y offset - 5, 3
@@ -1247,10 +1239,10 @@ void CPU_6502::BCS_r()
 
 // B1: LDA (zp), y - (Read 2 bytes starting at a zero-page address,
 // add y, and load the memory stored at the resulting address into a) - 5, 2
-void CPU_6502::LDA_zp_y_ind()
+void CPU_6502::LDA_zp_ind_y()
 {
     uint16_t newAddress = bus.read(operand);
-    newAddress += bus.read(operand + 1) << 8;
+    newAddress += bus.read((operand + 1) & 0xFF) << 8;
     newAddress += y;
 
     a = bus.read(newAddress);
@@ -1475,7 +1467,6 @@ void CPU_6502::BRNE_r()
 // D1: CMP (zp), y - Compare a with an indirectly indexed value in memory - 5, 2
 void CPU_6502::CMP_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -1666,7 +1657,6 @@ void CPU_6502::BEQ_r()
 // F1: SBC (zp), y - Perform a subtraction with carry between a and an indirectly indexed value in memory - 5, 2
 void CPU_6502::SBC_zp_ind_y()
 {
-    // TODO: if operand is 0xFF, should high byte of address be 0x0 or 0x100?
     uint16_t address = bus.read(operand);
     address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
@@ -2051,7 +2041,7 @@ void CPU_6502::SetupOpcodes()
 
     // B1: LDA (zp), y - (Read 2 bytes starting at a zero-page address,
     // add y, and load the memory stored at the resulting address into a) - 5, 2
-    SetupOpCode(0xB1, &CPU_6502::LDA_zp_y_ind, MN_LDA_ZP_IND_Y, 2);
+    SetupOpCode(0xB1, &CPU_6502::LDA_zp_ind_y, MN_LDA_ZP_IND_Y, 2);
 
     // B4: load y with memory from zero page offset by x - 4, 2
     SetupOpCode(0xB4, &CPU_6502::LDY_zp_x, MN_LDY_ZP_X, 2);

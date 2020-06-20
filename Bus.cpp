@@ -8,6 +8,7 @@
 Bus::Bus()
 {
     numPeripherals = 0;
+    isCPU_Bus = true;
 }
 
 
@@ -29,7 +30,7 @@ uint8_t Bus::read(uint16_t addr)
             return peripherals[i].pPeripheral->read(addr);
     }
 
-    printf("Error: read from unmapped 0x%X\n", addr);
+    printf("Error: %s read from unmapped 0x%X\n", (isCPU_Bus ? "CPU" : "PPU"), addr);
 
     return 0xFF;
 }
@@ -42,18 +43,11 @@ void Bus::write(uint16_t addr, uint8_t data)
         {
             peripherals[i].pPeripheral->write(addr, data);
 
-
-            if (addr >= 0x6000 && addr <= 0x6100)
-            {
-                //pCPU->running = false;
-                printf("%s\n", &((RAM *)(peripherals[1].pPeripheral))->mem[0x6004]);
-            }
-
             return;
         }
     }
 
-    printf("Error: write attempt to unmapped memory 0x%X\n", addr);
+    printf("Error: %s write attempt to unmapped memory 0x%X\n", (isCPU_Bus ? "CPU" : "PPU"), addr);
 }
 
 void Bus::attachPeripheral(uint16_t startAddr, uint16_t endAddr, Peripheral * pPer)

@@ -24,6 +24,7 @@ public:
     void attachPeripheral(uint16_t startAddr, uint16_t endAddr, Peripheral *pPer);
 
     CPU_6502 *pCPU;
+    bool isCPU_Bus;
 
 protected:
     int numPeripherals;

@@ -11,6 +11,7 @@ SDL_Rect simpleDisplayRect = { SIMPLE_DISPLAY_X,
                                 SIMPLE_DISPLAY_Y,
                                 SIMPLE_DISPLAY_WIDTH * SIMPLE_DISPLAY_PIXEL_SCALE,
                                 SIMPLE_DISPLAY_HEIGHT * SIMPLE_DISPLAY_PIXEL_SCALE };
+
 SDL_Rect nesDisplayRect = { NES_DISPLAY_X,
                             NES_DISPLAY_Y,
                             NES_DISPLAY_WIDTH * NES_DISPLAY_PIXEL_SCALE,
@@ -21,11 +22,15 @@ SDL_Rect pattern2Rect = { STATUS_MONITOR_WIDTH - NES_MARGIN - NES_PATTERN_WIDTH,
                             NES_PATTERN_WIDTH,
                             NES_PATTERN_HEIGHT };
 
-
 SDL_Rect pattern1Rect = { pattern2Rect.x - NES_PATTERN_WIDTH - NES_MARGIN,
                             pattern2Rect.y,
                             NES_PATTERN_WIDTH,
                             NES_PATTERN_HEIGHT };
+
+SDL_Rect paletteRect = { pattern1Rect.x,
+                         pattern1Rect.y - 8 * 8 - NES_MARGIN,
+                         16 * 16,
+                         4 * 16 };
 
 #ifdef SYSTEM_SIMPLE
 StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU)
@@ -339,6 +344,9 @@ void StatusMonitor::DrawDisplay()
     SDL_FillRect(screenSurface, &border, colorWhite);
     // Draw pattern 2 pixels
     SDL_BlitSurface(pPPU->pPattern2, NULL, screenSurface, &pattern2Rect);
+
+    // Draw palette display
+    SDL_BlitScaled(pPPU->pPaletteSurface, NULL, screenSurface, &paletteRect);
 }
 #endif
 
@@ -440,7 +448,9 @@ bool StatusMonitor::EventLoop()
             pPPU->scanline++;
         }
         pPPU->scanline = 0;
-        printf("End of frame\n");
+        
+        if(debugOutput)
+            printf("End of frame\n");
         //pPPU->statusReg.vBlank = false;
     }
 

@@ -11,7 +11,10 @@ public:
     ~Palette();
 
     uint8_t read(uint16_t address);
-    void write(uint16_t address, uint8_t value) { printf("TODO\n"); }
+    void write(uint16_t address, uint8_t value)
+    {
+        //printf("TODO\n");
+    }
 
     uint8_t mem[256];
 };

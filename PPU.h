@@ -144,6 +144,7 @@ public:
     void write(uint16_t address, uint8_t value);
     void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, SDL_PixelFormat *format);
     void UpdateImage();
+    void SetupPaletteValues();
 
     // PPU has its own bus in addition to the CPU bus
     Bus PPU_Bus;
@@ -161,6 +162,7 @@ public:
     SDL_Surface *pTV_Display;
     SDL_Surface *pPattern1;
     SDL_Surface *pPattern2;
+    SDL_Surface *pPaletteSurface;
 
     // Registers
     CONTROL_REG controlReg;
@@ -168,6 +170,8 @@ public:
     MASK_REG    maskReg;
 
     CPU_6502 *pCPU;
+
+    uint32_t paletteColorValues[64];
 
     uint16_t VRAM_Address;  // Address on the PPU bus that the CPU will access
     bool lowByteActive;     // True if the next access will modify the low byte, false if accessing the high byte

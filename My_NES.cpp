@@ -120,12 +120,18 @@ void SimpleMain()
 void NES_Main()
 {
     CPU_6502 cpu;
+    
     PPU ppu(&cpu);
+    ppu.PPU_Bus.isCPU_Bus = false;
+
     NES_Controller nesController1(&(cpu.bus));
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     //iNES_File ROM("01-basics.nes");
+    //iNES_File ROM("05-zp_xy.nes");
+    //iNES_File ROM("all_instrs.nes");
     iNES_File ROM("nestest.nes");
+    //iNES_File ROM("scanline.nes");
     //iNES_File ROM("Super Mario Bros. (World).nes");
     //iNES_File ROM("DK.nes");
 

@@ -42,6 +42,17 @@ PPU::PPU(CPU_6502 *pCPU)
                                      0x00FF0000,    // GMask
                                      0x0000FF00,    // BMask
                                      0x000000FF);   // AMask
+    pPaletteSurface = SDL_CreateRGBSurface(0,
+                                            16,
+                                            4,
+                                            32,
+                                            0xFF000000,
+                                            0x00FF0000,
+                                            0x0000FF00,
+                                            0x000000FF);
+
+    SetupPaletteValues();
+
     scanline = 0;
     paused = false;
     lowByteActive = false;
@@ -160,7 +171,10 @@ void PPU::write(uint16_t address, uint8_t value)
             }
 
             controlReg.entireRegister = value;
-            printf("PPUCTRL: 0x%X\n", value);
+            
+            if(debugOutput)
+                printf("PPUCTRL: 0x%X\n", value);
+
             break;
 
         case PPUMASK:
@@ -186,21 +200,27 @@ void PPU::write(uint16_t address, uint8_t value)
 
         case PPUADDR:
             // aaaa aaaa	PPU read / write address(two writes : most significant byte, least significant byte)
-            printf("0x%X - ", value);
+            if(debugOutput)
+                printf("0x%X - ", value);
+            
             if (lowByteActive)
             {
-                printf("low byte active\n");
+                if(debugOutput)
+                    printf("low byte active\n");
+
                 VRAM_Address += value;
             }
             else
             {
-                printf("high byte active\n");
+                if (debugOutput)
+                    printf("high byte active\n");
                 VRAM_Address = (uint16_t)value << 8;
             }
 
             lowByteActive = !lowByteActive;
 
-            printf("PPUADDR 0x%X\n", VRAM_Address);
+            if (debugOutput)
+                printf("PPUADDR 0x%X\n", VRAM_Address);
             //paused = true;
             break;
 
@@ -311,13 +331,17 @@ void PPU::UpdateImage()
     uint32_t pixelOffset = 0;
 
     uint32_t *pPixels = (uint32_t *)pTV_Display->pixels;
-
+    
+    // Base nametable address controlReg.baseNametableAddress
+    // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
+    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);
+    
     // Copy tiles from nametable
     for (int y = 0; y < 30; ++y)
     {
         for (int x = 0; x < 32; ++x)
         {
-            uint8_t tileID = pNameTable->mem[0x2000 + y * 32 + x];
+            uint8_t tileID = pNameTable->mem[nametableBase + y * 32 + x];
 
             // Copy tile to image x, y
             CopyTileToImage(tileID, x, y, pPixels, pTV_Display->format);
@@ -326,4 +350,90 @@ void PPU::UpdateImage()
 
     SDL_UnlockSurface(pTV_Display);
 
+}
+
+void PPU::SetupPaletteValues()
+{
+    int i = 0;
+    SDL_PixelFormat *pFormat = pPaletteSurface->format;
+
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 84,   84,  84 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    30, 116 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 8,    16, 144 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 48,   0,  136 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 68,   0,  100 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 92,   0,   48 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 84,   4,    0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 60,   24,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 32,   42,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 8,    58,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    64,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    60,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    50,  60 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 152, 150, 152 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 8,    76, 196 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 48,   50, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 92,   30, 228 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 136,  20, 176 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 160,  20, 100 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 152,  34,  32 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 120,  60,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 84,   90,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 40,   114,  0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 8,    124,  0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    118, 40 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    102,120 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0,    0,    0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+        
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 238, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat,  76, 154, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 120, 124, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 176,  98, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 228,  84, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236,  88, 180 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 106, 100 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 212, 136,  32 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 160, 170,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 116, 196,   0 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat,  76, 208,  32 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat,  56, 204, 108 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat,  56, 180, 204 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat,  60,  60,  60 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 238, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 168, 204, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 188, 188, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 212, 178, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 174, 236 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 174, 212 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 236, 180, 176 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 228, 196, 144 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 204, 210, 120 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 180, 222, 120 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 168, 226, 144 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 152, 226, 180 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 160, 214, 228 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 160, 162, 160 );
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    paletteColorValues[i++] = SDL_MapRGB(pFormat, 0, 0, 0);
+    
+    // Copy colors to palette image
+    SDL_LockSurface(pPaletteSurface);
+
+    uint32_t *pPixels = (uint32_t *)pPaletteSurface->pixels;
+    i = 0;    
+    for (i = 0; i < 64; ++i)
+    {
+        pPixels[i] = paletteColorValues[i];
+    }
+
+    SDL_UnlockSurface(pPaletteSurface);
 }
