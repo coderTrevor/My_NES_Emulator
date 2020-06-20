@@ -162,11 +162,12 @@ void StatusMonitor::DrawDisplay()
 #endif
 
 #ifdef SYSTEM_NES
-StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU)
+StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controller *pController1)
 {
     this->pRAM = pRAM;
     this->pCPU = pCPU;
     this->pPPU = pPPU;
+    this->pController1 = pController1;
     cpuRunning = false;
 
     // Create an SDL window to display the status
@@ -366,6 +367,37 @@ bool StatusMonitor::EventLoop()
                         cpuRunning = true;
                         pCPU->running = true;
                         pPPU->paused = false;
+                        break;
+
+                    // Check for controller input
+                    case SDLK_END:
+                        printf("End pressed\n");
+                        pController1->buttons.select = true;
+                        break;
+                    case SDLK_DOWN:
+                        printf("Down pressed\n");
+                        pController1->buttons.down = true;
+                        break;
+                    case SDLK_UP:
+                        printf("Up pressed\n");
+                        pController1->buttons.up = true;
+                        break;
+                    case SDLK_RETURN:
+                    case SDLK_KP_ENTER:
+                        printf("Enter pressed\n");
+                        pController1->buttons.start = true;
+                        break;
+                    case SDLK_RIGHT:
+                        pController1->buttons.right = true;
+                        break;
+                    case SDLK_LEFT:
+                        pController1->buttons.left = true;
+                        break;
+                    case SDLK_x:
+                        pController1->buttons.b = true;
+                        break;
+                    case SDLK_z:
+                        pController1->buttons.a = true;
                         break;
                 }
 

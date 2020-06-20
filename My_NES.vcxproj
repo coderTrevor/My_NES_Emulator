@@ -157,6 +157,7 @@
     <ClInclude Include="Bus.h" />
     <ClInclude Include="iNES_File.h" />
     <ClInclude Include="Mnemonics.h" />
+    <ClInclude Include="NES_Controller.h" />
     <ClInclude Include="Palette.h" />
     <ClInclude Include="PPU.h" />
     <ClInclude Include="RAM.h" />
@@ -170,6 +171,7 @@
     <ClCompile Include="font.c" />
     <ClCompile Include="iNES_File.cpp" />
     <ClCompile Include="My_NES.cpp" />
+    <ClCompile Include="NES_Controller.cpp" />
     <ClCompile Include="Palette.cpp" />
     <ClCompile Include="peripheral.cpp" />
     <ClCompile Include="PPU.cpp" />

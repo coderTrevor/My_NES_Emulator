@@ -59,7 +59,7 @@ bool CPU_6502::Step()
         
         printf("New PC - 0x%X\n", PC);
 
-        debugOutput = true;
+        //debugOutput = true;
         nmi = false;
         return true;
     }
@@ -255,8 +255,9 @@ void CPU_6502::ASL()
     flags.carry = IS_NEGATIVE(a);
 
     a <<= 1;
+
     flags.negative = IS_NEGATIVE(a);
-    flags.zero = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
 }
 
 // 0D: ORA a - Inclusive OR between a and value in memory - 4, 3
@@ -623,7 +624,7 @@ void CPU_6502::RTI()
 
     PC = newPC;
     
-    running = false;
+    //running = false;
     printf("\nRet PC - 0x%X\n\n", PC);
 }
 
@@ -676,6 +677,9 @@ void CPU_6502::LSR()
     flags.carry = ((a & 1) == 1);
 
     a >>= 1;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
 }
 
 // 4C: JMP a (jump to absolute address) - 3, 3

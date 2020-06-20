@@ -4,6 +4,7 @@
 #include "RAM.h"
 #include "System.h"
 #include "PPU.h"
+#include "NES_Controller.h"
 #include <SDL.h>
 
 #ifdef SIMPLE_SYSTEM
@@ -37,7 +38,7 @@ class StatusMonitor
 {
 public:
     StatusMonitor(RAM *pRAM, CPU_6502 *pCPU);
-    StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU);
+    StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controller *pController1);
     ~StatusMonitor();
 
     bool EventLoop();
@@ -104,6 +105,7 @@ public:
     RAM *pRAM;
     CPU_6502 *pCPU;
     PPU *pPPU;
+    NES_Controller *pController1;
 
     bool cpuRunning;
 

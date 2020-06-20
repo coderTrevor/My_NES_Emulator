@@ -17,9 +17,11 @@ Bus::~Bus()
 
 uint8_t Bus::read(uint16_t addr)
 {
+#ifdef SYSTEM_SIMPLE
     // 0xfe is a random byte
     if (addr == 0xfe)
         return rand() & 0xFF;
+#endif
 
     for (int i = 0; i < numPeripherals; ++i)
     {

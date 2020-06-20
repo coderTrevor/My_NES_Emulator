@@ -8,6 +8,7 @@
 #include "StatusMonitor.h"
 #include "iNES_File.h"
 #include "System.h"
+#include "NES_Controller.h"
 
 bool debugOutput = false;
 
@@ -120,6 +121,7 @@ void NES_Main()
 {
     CPU_6502 cpu;
     PPU ppu(&cpu);
+    NES_Controller nesController1(&(cpu.bus));
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     //iNES_File ROM("01-basics.nes");
@@ -148,7 +150,7 @@ void NES_Main()
     memcpy(ppu.pPatternTable->mem, ROM.pCHRdata, ROM.chrRomSize);
 
     // Create the status monitor
-    StatusMonitor statusMonitor(&ram, &cpu, &ppu);
+    StatusMonitor statusMonitor(&ram, &cpu, &ppu, &nesController1);
 
     cpu.Reset();
 
