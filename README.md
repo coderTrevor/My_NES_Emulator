@@ -9,9 +9,13 @@ It implements a simple display and keyboard input like one of the virtual machin
 
 It's also beginning to implement the NES.
 
+## Screenshots Taken During Development
 ![Screenshot running my snake game](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot1.png "Emulator Screenshot")
 ![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot2.png "Emulator Screenshot of Donkey Kong")
 ![Screenshot running Super Mario Bros](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot3.png "Emulator Screenshot of Super Mario Bros")
+![Screenshot running nestest.nes](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot4.png "Emulator Screenshot of nestest.nes")
+![Screenshot running Super Mario Bros with color](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot5.png "Emulator Screenshot of Super Mario Bros. with color")
+![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot6.png "Emulator Screenshot of Donkey Kong with color")
 
 ## Goals
 * Should be capable of running a commercial NES game, not one of the really hard-to-emulate ones like Battletoads, but maybe one of the medium-difficulty ones like SMB. 
