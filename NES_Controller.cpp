@@ -48,8 +48,8 @@ void NES_Controller::write(uint16_t address, uint8_t value)
     // latch in button valuesx
     latch = buttons.allBits;
 
-    if((value & 1) == 0)
-        buttons.allBits = 0;
+    //if((value & 1) == 0)
+    //    buttons.allBits = 0;
 
     //printf("latch value: 0x%X\n", latch);
 }

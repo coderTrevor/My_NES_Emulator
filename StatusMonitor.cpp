@@ -450,6 +450,44 @@ bool StatusMonitor::EventLoop()
                 pCPU->bus.write(0xff, event.key.keysym.sym);
 #endif
                 break;
+
+            case SDL_KEYUP:
+                switch (event.key.keysym.sym)
+                {
+
+
+                    // Check for controller input
+                    case SDLK_END:
+                        printf("End pressed\n");
+                        pController1->buttons.select = false;
+                        break;
+                    case SDLK_DOWN:
+                        printf("Down pressed\n");
+                        pController1->buttons.down = false;
+                        break;
+                    case SDLK_UP:
+                        printf("Up pressed\n");
+                        pController1->buttons.up = false;
+                        break;
+                    case SDLK_RETURN:
+                    case SDLK_KP_ENTER:
+                        printf("Enter pressed\n");
+                        pController1->buttons.start = false;
+                        break;
+                    case SDLK_RIGHT:
+                        pController1->buttons.right = false;
+                        break;
+                    case SDLK_LEFT:
+                        pController1->buttons.left = false;
+                        break;
+                    case SDLK_x:
+                        pController1->buttons.b = false;
+                        break;
+                    case SDLK_z:
+                        pController1->buttons.a = false;
+                        break;
+                }
+                break;
             case SDL_QUIT:
                 return false;
                 break;

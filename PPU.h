@@ -152,6 +152,44 @@ typedef union
     uint8_t entireEntry;
 }ATTRIBUTE_TABLE_ENTRY;
 
+typedef union
+{
+    /*
+    Byte 2
+    Attributes
+
+    76543210
+    ||||||||
+    ||||||++- Palette (4 to 7) of sprite
+    |||+++--- Unimplemented
+    ||+------ Priority (0: in front of background; 1: behind background)
+    |+------- Flip sprite horizontally
+    +-------- Flip sprite vertically
+    Flipping does not change the position of the sprite's bounding box, just the position of pixels within the sprite. If, for example, a sprite covers (120, 130) through (127, 137), it'll still cover the same area when flipped. In 8x16 mode, vertical flip flips each of the subtiles and also exchanges their position; the odd-numbered tile of a vertically flipped sprite is drawn on top. This behavior differs from the behavior of the unofficial 16x32 and 32x64 pixel sprite sizes on the Super NES, which will only vertically flip each square sub-region.
+    */
+    struct
+    {
+        uint8_t paletteNumber : 2; // palette entry 4-7
+        uint8_t unimplemented : 3;
+        bool drawBehindBackground : 1;
+        bool flipHorizontally : 1;
+        bool flipVertically : 1;
+    };
+    uint8_t entireByte;
+} OAM_ATTRIBUTES_BYTE;
+
+typedef union
+{
+    struct
+    {
+        uint8_t yPos;   // y-position of sprite minus 1 pixel
+        uint8_t tileIndex;
+        OAM_ATTRIBUTES_BYTE attributes;
+        uint8_t xPos;
+    };
+    uint8_t allBytes[4];
+}OAM_ENTRY;
+
 class PPU :
     public Peripheral
 {
@@ -161,8 +199,9 @@ public:
 
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
-    
+
     void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int paletteNumber);
+    void DrawSprite(uint8_t tileNumber, int x, int y, uint32_t *pPixels, int paletteNumber, bool flipHorizontal);
     int  GetPaletteNumberForTile(int x, int y, uint16_t nametableBase);
     void UpdateImage();
     void SetupPaletteValues();
@@ -178,6 +217,10 @@ public:
 
     // Palette data from 0x3F00 - 0x3FFF
     Palette *pPalette;
+
+    // Object Attribute Memory (sprites)
+    OAM_ENTRY OAM_Memory[64];
+    uint16_t OAM_Address;
 
     // Surfaces to draw to
     SDL_Surface *pTV_Display;

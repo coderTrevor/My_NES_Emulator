@@ -6,6 +6,9 @@
 PPU::PPU(CPU_6502 *pCPU)
     : Peripheral(&pCPU->bus, 0x2000, 0x3FFF)
 {
+    // Map OAMDMA register in the CPU bus
+    pCPU->bus.attachPeripheral(OAMDMA, OAMDMA, this);
+
     // 8 KB pattern table
     pPatternTable = new RAM(&PPU_Bus, 0, 0x1FFF);
  
@@ -147,8 +150,22 @@ void PPU::write(uint16_t address, uint8_t value)
 {
     if (address == OAMDMA)
     {
-        printf("OAMDMA written\n");
-        paused = true;
+        //printf("OAMDMA written: 0x%X\n", value);
+        //paused = true;
+        uint8_t *dest = (uint8_t*)OAM_Memory;
+        dest += OAM_Address;
+        uint8_t *end = (uint8_t*)&OAM_Memory[64];
+
+        uint16_t srcAddr = (uint16_t)value << 8;
+        for (int i = 0; i < 256 && dest < end; ++i, ++dest, ++srcAddr)
+            *dest = pCPU->bus.read(srcAddr);
+
+        printf("OAM now:\n");
+        for (int i = 0; i < 64; ++i)
+        {
+            printf("Sprite %d\t - (%d, %d)\t - \n", OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos);
+        }
+
         return;
     }
 
@@ -188,10 +205,12 @@ void PPU::write(uint16_t address, uint8_t value)
 
         case OAMADDR:
             // 	aaaa aaaa	OAM read / write address
+            //printf("OAM Address written: 0x%X\n", value);
             break;
 
         case OAMDATA:
             // 	dddd dddd	OAM data read / write
+            printf("OAM Data written\n");
             break;
 
         case PPUSCROLL:
@@ -327,6 +346,79 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
     }
 }
 
+// TODO : handle literal edge cases when sprites are on the edge of the screen
+void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int paletteNumber, bool flipHorizontal)
+{
+    // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
+    uint8_t tileLSB[8];
+    uint8_t tileMSB[8];
+
+    uint32_t pixelOffset = y * 256 + x;
+    uint32_t patternOffset = tileNumber * 16;
+
+    uint8_t *pPatternMemory = pPatternTable->mem;
+
+    if (controlReg.spritePatternTableSelect)
+        pPatternMemory += 0x1000;
+
+    // Get color data for the tile
+    uint32_t colors[4];
+    // TODO: mapping palette to RGBA values could happen when palette is written to, offering an optimization
+    colors[0] = 0;
+    colors[1] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[0]];
+    colors[2] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[1]];
+    colors[3] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[2]];
+
+    // Extract data for the tile, bitplane of low bits is stored before bitplane of high bits
+    SDL_memcpy(tileLSB, pPatternMemory + patternOffset, 8);
+    SDL_memcpy(tileMSB, pPatternMemory + patternOffset + 8, 8);
+
+    // Copy pixels
+    // for each row
+    for (int y = 0; y < 8; ++y)
+    {
+        uint8_t lowBytes = tileLSB[y];
+        uint8_t highBytes = tileMSB[y];
+
+        // Determine the color of each pixel
+        uint8_t pix1 = lowBytes & 1 | ((highBytes & 1) << 1);
+        uint8_t pix2 = (lowBytes & 2) >> 1 | (highBytes & 2);
+        uint8_t pix3 = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
+        uint8_t pix4 = (lowBytes & 8) >> 3 | ((highBytes & 8) >> 2);
+        uint8_t pix5 = (lowBytes & 0x10) >> 4 | ((highBytes & 0x10) >> 3);
+        uint8_t pix6 = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
+        uint8_t pix7 = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
+        uint8_t pix8 = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
+
+        // Copy the pixels that aren't transparent
+        if (flipHorizontal)
+        {
+
+            pix1 ? pPixels[pixelOffset++] = colors[pix1] : ++pixelOffset;
+            pix2 ? pPixels[pixelOffset++] = colors[pix2] : ++pixelOffset;
+            pix3 ? pPixels[pixelOffset++] = colors[pix3] : ++pixelOffset;
+            pix4 ? pPixels[pixelOffset++] = colors[pix4] : ++pixelOffset;
+            pix5 ? pPixels[pixelOffset++] = colors[pix5] : ++pixelOffset;
+            pix6 ? pPixels[pixelOffset++] = colors[pix6] : ++pixelOffset;
+            pix7 ? pPixels[pixelOffset++] = colors[pix7] : ++pixelOffset;
+            pix8 ? pPixels[pixelOffset++] = colors[pix8] : ++pixelOffset;
+        }
+        else
+        {
+            pix8 ? pPixels[pixelOffset++] = colors[pix8] : ++pixelOffset;
+            pix7 ? pPixels[pixelOffset++] = colors[pix7] : ++pixelOffset;
+            pix6 ? pPixels[pixelOffset++] = colors[pix6] : ++pixelOffset;
+            pix5 ? pPixels[pixelOffset++] = colors[pix5] : ++pixelOffset;
+            pix4 ? pPixels[pixelOffset++] = colors[pix4] : ++pixelOffset;
+            pix3 ? pPixels[pixelOffset++] = colors[pix3] : ++pixelOffset;
+            pix2 ? pPixels[pixelOffset++] = colors[pix2] : ++pixelOffset;
+            pix1 ? pPixels[pixelOffset++] = colors[pix1] : ++pixelOffset;
+        }
+
+        pixelOffset += 256 - 8;
+    }
+}
+
 int PPU::GetPaletteNumberForTile(int x, int y, uint16_t nametableBase)
 {
     // The palette entry defines the palette for four 2x2 sets of tiles.
@@ -371,7 +463,9 @@ void PPU::UpdateImage()
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
     uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);    
 
-    // Copy tiles from nametable
+    // TODO: draw sprites behind background
+
+    // Copy background tiles from nametable
     for (int y = 0; y < 30; ++y)
     {
         for (int x = 0; x < 32; ++x)
@@ -384,6 +478,20 @@ void PPU::UpdateImage()
             // Copy tile to image x, y
             CopyTileToImage(tileID, x, y, pPixels, paletteNumber);
         }
+    }
+
+    // Draw foreground sprites
+    uint16_t patternTableAddress = 0;
+    if (controlReg.spritePatternTableSelect)
+        patternTableAddress += 0x1000;
+    // Draw higher-index sprites first so lower-index sprites will overlap them
+    for (int i = 63; i >= 0; --i)
+    {
+        // sprites off the screen arent drawn
+        if (OAM_Memory[i].yPos >= 0xEF)
+            continue;
+
+        DrawSprite(OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos, pPixels, OAM_Memory[i].attributes.paletteNumber + 4, OAM_Memory[i].attributes.flipHorizontally);
     }
 
     SDL_UnlockSurface(pTV_Display);
