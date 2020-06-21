@@ -4,6 +4,7 @@
 #include "peripheral.h"
 #include "CPU_6502.h"
 #include "RAM.h"
+#include "System.h"
 
 Bus::Bus()
 {

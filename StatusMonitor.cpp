@@ -164,6 +164,47 @@ void StatusMonitor::DrawDisplay()
         pixel.y += SIMPLE_DISPLAY_PIXEL_SCALE;
     }
 }
+
+
+bool StatusMonitor::EventLoop()
+{
+    SDL_Event event;
+    if (SDL_PollEvent(&event))
+    {
+        switch (event.type)
+        {
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym)
+                {
+                    case SDLK_s:
+                        pCPU->Step();
+                        break;
+                    case SDLK_r:
+                        pCPU->Reset();
+                        break;
+                    case SDLK_g:
+                        cpuRunning = true;
+                        pCPU->running = true;
+                        break;
+                }
+
+                // write key to 0xff
+                pCPU->bus.write(0xff, event.key.keysym.sym);
+
+                break;
+            case SDL_QUIT:
+                return false;
+                break;
+        }
+    }
+
+    Draw();
+
+    for (int i = 0; i < 10 && cpuRunning && pCPU->running; ++i)
+        cpuRunning = pCPU->Step();
+
+    return true;
+}
 #endif
 
 #ifdef SYSTEM_NES
@@ -348,12 +389,7 @@ void StatusMonitor::DrawDisplay()
     // Draw palette display
     SDL_BlitScaled(pPPU->pPaletteSurface, NULL, screenSurface, &paletteRect);
 }
-#endif
 
-StatusMonitor::~StatusMonitor()
-{
-    // TODO: Cleanup
-}
 
 bool StatusMonitor::EventLoop()
 {
@@ -448,13 +484,20 @@ bool StatusMonitor::EventLoop()
             pPPU->scanline++;
         }
         pPPU->scanline = 0;
-        
-        if(debugOutput)
+
+        if (debugOutput)
             printf("End of frame\n");
         //pPPU->statusReg.vBlank = false;
     }
 
     return true;
+}
+
+#endif
+
+StatusMonitor::~StatusMonitor()
+{
+    // TODO: Cleanup
 }
 
 void StatusMonitor::Draw()

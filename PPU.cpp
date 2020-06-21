@@ -10,7 +10,7 @@ PPU::PPU(CPU_6502 *pCPU)
     pPatternTable = new RAM(&PPU_Bus, 0, 0x1FFF);
  
     // 2 KB name table
-    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x3EFF, 2048);
+    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x2FFF, 2048);
 
     // 256 byytes of palette data
     pPalette = new Palette(&PPU_Bus);
@@ -209,6 +209,21 @@ void PPU::write(uint16_t address, uint8_t value)
                     printf("low byte active\n");
 
                 VRAM_Address += value;
+                
+                if (VRAM_Address >= 0xA654 && VRAM_Address <= 0xA679)
+                {
+                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
+                    VRAM_Address &= 0x3FFF;
+                }
+                else if (VRAM_Address >= 0xD8DE && VRAM_Address < 0xDADE)
+                {
+                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
+                    VRAM_Address &= 0x3FFF;
+                }
+                else if (VRAM_Address > 0x3FFF)
+                {
+                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
+                }
             }
             else
             {
@@ -221,6 +236,13 @@ void PPU::write(uint16_t address, uint8_t value)
 
             if (debugOutput)
                 printf("PPUADDR 0x%X\n", VRAM_Address);
+
+            // Handle mirroring of VRAM_Address
+            //VRAM_Address &= 0x3FFF;
+            /*
+            if (VRAM_Address >= 0x3F00 && VRAM_Address <= 0x3EFF)
+                VRAM_Address -= 0x1000;*/
+
             //paused = true;
             break;
 
@@ -238,6 +260,9 @@ void PPU::write(uint16_t address, uint8_t value)
             else
                 ++VRAM_Address;
 
+            if (VRAM_Address > 0x3FFF)
+                printf("\nVRAM Address incremented beyond 0x3FFF\n\n");
+
             break;
 
         default:
@@ -246,34 +271,7 @@ void PPU::write(uint16_t address, uint8_t value)
     }
 }
 
-inline void plotPixel(uint8_t pixel, SDL_PixelFormat *format, uint32_t *address)
-{
-    uint32_t white = SDL_MapRGB(format, 255, 255, 255);
-    uint32_t lightGray = SDL_MapRGB(format, 128, 128, 128);
-    uint32_t darkGray = SDL_MapRGB(format, 64, 64, 64);
-    uint32_t black = SDL_MapRGB(format, 0, 0, 0);
-
-    switch (pixel)
-    {
-        case 3:
-            *address = white;
-            break;
-        case 2:
-            *address = lightGray;
-            break;
-        case 1:
-            *address = darkGray;
-            break;
-        case 0:
-            *address = black;
-            break;
-        default:
-            printf("Invalid value\n");
-            break;
-    }
-}
-
-void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, SDL_PixelFormat *format)
+void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int paletteNumber)
 {
     // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
     uint8_t tileLSB[8];
@@ -287,9 +285,15 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
     if (controlReg.backgroundPatternTableSelect)
         pPatternMemory += 0x1000;
 
-    // Get tile data
+    // Get palette data for the tile
+    uint32_t colors[4];
+    // TODO: mapping palette to RGBA values could happen when palette is written to, offering an optimization
+    colors[0] = paletteColorValues[pPalette->paletteMem.universalBackground];
+    colors[1] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[0]];
+    colors[2] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[1]];
+    colors[3] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[2]];
 
-    // Extract data for the tile
+    // Extract data for the tile, bitplane of low bits is stored before bitplane of high bits
     SDL_memcpy(tileLSB, pPatternMemory + patternOffset, 8);
     SDL_memcpy(tileMSB, pPatternMemory + patternOffset + 8, 8);
 
@@ -310,18 +314,49 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
         uint8_t pix7 = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
         uint8_t pix8 = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
 
-
-        plotPixel(pix8, format, &pPixels[pixelOffset++]);
-        plotPixel(pix7, format, &pPixels[pixelOffset++]);
-        plotPixel(pix6, format, &pPixels[pixelOffset++]);
-        plotPixel(pix5, format, &pPixels[pixelOffset++]);
-        plotPixel(pix4, format, &pPixels[pixelOffset++]);
-        plotPixel(pix3, format, &pPixels[pixelOffset++]);
-        plotPixel(pix2, format, &pPixels[pixelOffset++]);
-        plotPixel(pix1, format, &pPixels[pixelOffset++]);
+        pPixels[pixelOffset++] = colors[pix8];
+        pPixels[pixelOffset++] = colors[pix7];
+        pPixels[pixelOffset++] = colors[pix6];
+        pPixels[pixelOffset++] = colors[pix5];
+        pPixels[pixelOffset++] = colors[pix4];
+        pPixels[pixelOffset++] = colors[pix3];
+        pPixels[pixelOffset++] = colors[pix2];
+        pPixels[pixelOffset++] = colors[pix1];
 
         pixelOffset += 256 - 8;
     }
+}
+
+int PPU::GetPaletteNumberForTile(int x, int y, uint16_t nametableBase)
+{
+    // The palette entry defines the palette for four 2x2 sets of tiles.
+    // determine which of the four quadrants the tile is occupying
+    int quadX = (x & 3) / 2;    // 0 for left quadrant, 1 for right
+    int quadY = (y & 3) / 2;    // 0 for top quadrant, 1 for bottom
+
+    // Get first entry into palette table
+    ATTRIBUTE_TABLE_ENTRY *pEntry = (ATTRIBUTE_TABLE_ENTRY *)(&pNameTable->mem[nametableBase + 0x3C0]);
+
+    // Advance to palette number for this tile
+    x /= 4;
+    y /= 4;
+    pEntry += (y * 8) + (x);
+
+    // return the palette entry for the proper quadrant
+    if ((quadX == 0) && (quadY == 0))
+        return pEntry->topLeftPaletteIndex;
+
+    if ((quadX == 1) && (quadY == 0))
+        return pEntry->topRightPaletteIndex;
+
+    if ((quadX == 0) && (quadY == 1))
+        return pEntry->bottomLeftPaletteIndex;
+
+    if ((quadX == 1) && (quadY == 1))
+        return pEntry->bottomRightPaletteIndex;
+
+    printf("\nShouldn't reach here!\n");
+    return 0;
 }
 
 void PPU::UpdateImage()
@@ -334,8 +369,8 @@ void PPU::UpdateImage()
     
     // Base nametable address controlReg.baseNametableAddress
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);
-    
+    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);    
+
     // Copy tiles from nametable
     for (int y = 0; y < 30; ++y)
     {
@@ -343,8 +378,11 @@ void PPU::UpdateImage()
         {
             uint8_t tileID = pNameTable->mem[nametableBase + y * 32 + x];
 
+            // Get palette number for the current tile (1-4)
+            int paletteNumber = GetPaletteNumberForTile(x, y, nametableBase);
+
             // Copy tile to image x, y
-            CopyTileToImage(tileID, x, y, pPixels, pTV_Display->format);
+            CopyTileToImage(tileID, x, y, pPixels, paletteNumber);
         }
     }
 
@@ -429,11 +467,9 @@ void PPU::SetupPaletteValues()
     SDL_LockSurface(pPaletteSurface);
 
     uint32_t *pPixels = (uint32_t *)pPaletteSurface->pixels;
-    i = 0;    
+
     for (i = 0; i < 64; ++i)
-    {
         pPixels[i] = paletteColorValues[i];
-    }
 
     SDL_UnlockSurface(pPaletteSurface);
 }

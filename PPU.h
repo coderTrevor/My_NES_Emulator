@@ -133,6 +133,25 @@ typedef union
     uint8_t entireRegister;
 } STATUS_REG;
 
+/*
+7654 3210
+|||| ||++- Color bits 3-2 for top left quadrant of this byte
+|||| ++--- Color bits 3-2 for top right quadrant of this byte
+||++------ Color bits 3-2 for bottom left quadrant of this byte
+++-------- Color bits 3-2 for bottom right quadrant of this byte
+*/
+typedef union
+{
+    struct
+    {
+        uint8_t topLeftPaletteIndex : 2;
+        uint8_t topRightPaletteIndex : 2;
+        uint8_t bottomLeftPaletteIndex : 2;
+        uint8_t bottomRightPaletteIndex : 2;
+    };
+    uint8_t entireEntry;
+}ATTRIBUTE_TABLE_ENTRY;
+
 class PPU :
     public Peripheral
 {
@@ -142,7 +161,9 @@ public:
 
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
-    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, SDL_PixelFormat *format);
+    
+    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int paletteNumber);
+    int  GetPaletteNumberForTile(int x, int y, uint16_t nametableBase);
     void UpdateImage();
     void SetupPaletteValues();
 
