@@ -239,6 +239,7 @@ public:
 
     uint16_t VRAM_Address;  // Address on the PPU bus that the CPU will access
     bool lowByteActive;     // True if the next access will modify the low byte, false if accessing the high byte
+    uint8_t readBuffer;     // Reads from VRAM (but not Palette memory) are delayed by one read
 
     int scanline;
     bool paused;

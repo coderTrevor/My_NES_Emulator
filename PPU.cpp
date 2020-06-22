@@ -113,7 +113,6 @@ uint8_t PPU::read(uint16_t address)
             break;
 
         case OAMDATA:
-            // 	dddd dddd	OAM data read / write
             break;
 
         case PPUSCROLL:
@@ -130,12 +129,22 @@ uint8_t PPU::read(uint16_t address)
             // dddd dddd	PPU data read / write
             //paused = true;
             printf("PPUDATA read from 0x%X\n", VRAM_Address);
-            data = PPU_Bus.read(VRAM_Address);
+
+            // reads from VRAM are delayed by one read, so we'll be returning the buffered data from the previous read
+            data = readBuffer;
+            readBuffer = PPU_Bus.read(VRAM_Address);
+
+            // Reads from palette memory aren't delayed
+            if (VRAM_Address >= 0x3F00 && VRAM_Address <= 0x3FFF)
+                data = readBuffer;
 
             if (controlReg.VRAM_AddressIncBy32)
                 VRAM_Address += 32;
             else
                 ++VRAM_Address;
+
+            // TODO: Mirroring
+            VRAM_Address &= 0x3FFF;
 
             break;
 
@@ -493,7 +502,7 @@ void PPU::UpdateImage()
         if (OAM_Memory[i].yPos >= 0xEF)
             continue;
 
-        DrawSprite(OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos, pPixels, OAM_Memory[i].attributes.paletteNumber + 4, OAM_Memory[i].attributes.flipHorizontally);
+        DrawSprite(OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos + 1, pPixels, OAM_Memory[i].attributes.paletteNumber + 4, OAM_Memory[i].attributes.flipHorizontally);
     }
 
     SDL_UnlockSurface(pTV_Display);

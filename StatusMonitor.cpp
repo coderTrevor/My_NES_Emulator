@@ -497,6 +497,7 @@ bool StatusMonitor::EventLoop()
 
     if (cpuRunning && pCPU->running && !pPPU->paused)
     {
+        pPPU->statusReg.sprite0_Hit = false;
         for (int y = 0; y < 240; ++y)
         {
             for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
@@ -504,6 +505,12 @@ bool StatusMonitor::EventLoop()
 
             // That's probably enough cycles for an end of line
             pPPU->scanline++;
+
+            // Put in a hack for sprite 0 hit detection
+            if (y == pPPU->OAM_Memory[0].yPos + 1)
+            {
+                pPPU->statusReg.sprite0_Hit = true;
+            }
             //printf("scanline %d\n", pPPU->scanline);
         }
 
