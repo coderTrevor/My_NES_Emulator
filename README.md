@@ -1,8 +1,6 @@
 # My_NES_Emulator
 Yet Another NES Emulator (WIP)
 
-One day this could be an emulator capable of playing a commercial NES game.
-
 It emulates about 100% of the official opcodes of the 6052 CPU.
 
 It implements a simple display and keyboard input like one of the virtual machines you can find [here](http://skilldrick.github.io/easy6502/). It can run the snake game you can find there, and the snake game I wrote six years ago that's here on Github.
@@ -17,6 +15,8 @@ It's also beginning to implement the NES, and you can now play Donkey Kong on it
 ![Screenshot running Super Mario Bros with color](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot5.png "Emulator Screenshot of Super Mario Bros. with color")
 ![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot6.png "Emulator Screenshot of Donkey Kong with color")
 ![Screenshot of me playing Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot7.png "Emulator Screenshot of Donkey Kong with sprites")
+![Screenshot running Super Mario Bros with proper title screen](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot8.png "Emulator Screenshot of Super Mario Bros. with proper title screen")
+![Screenshot running Super Mario Bros with Mario](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot9.png "Emulator Screenshot of Super Mario Bros. with Mario")
 
 ## Goals
 * Should be capable of running a commercial NES game, not one of the really hard-to-emulate ones like Battletoads, but maybe one of the medium-difficulty ones like SMB. 
