@@ -63,6 +63,7 @@ PPU::PPU(CPU_6502 *pCPU)
     statusReg.entireRegister = 0;
     controlReg.entireRegister = 0;
     maskReg.entireRegister = 0;
+    OAM_Address = 0;
 }
 
 PPU::~PPU()
@@ -160,11 +161,11 @@ void PPU::write(uint16_t address, uint8_t value)
         for (int i = 0; i < 256 && dest < end; ++i, ++dest, ++srcAddr)
             *dest = pCPU->bus.read(srcAddr);
 
-        printf("OAM now:\n");
+        /*printf("OAM now:\n");
         for (int i = 0; i < 64; ++i)
         {
             printf("Sprite %d\t - (%d, %d)\t - \n", OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos);
-        }
+        }*/
 
         return;
     }
@@ -206,6 +207,7 @@ void PPU::write(uint16_t address, uint8_t value)
         case OAMADDR:
             // 	aaaa aaaa	OAM read / write address
             //printf("OAM Address written: 0x%X\n", value);
+            OAM_Address = value;
             break;
 
         case OAMDATA:

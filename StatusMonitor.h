@@ -30,6 +30,9 @@ extern SDL_Rect simpleDisplayRect;
 #define NES_PATTERN_WIDTH   128
 #define NES_PATTERN_HEIGHT  128
 #define NES_MARGIN          8
+
+#define MAX_FPS_FRAME_TIMES 120
+
 extern SDL_Rect nesDisplayRect;
 extern SDL_Rect pattern1Rect;
 extern SDL_Rect pattern2Rect;
@@ -115,5 +118,9 @@ protected:
     void DrawStatusReg(char *regName, bool set, int x, int y);
     void DrawReg(char *regName, uint16_t value, int x, int y, bool showDecimal = true);
     void SetupColors();
+    void LimitFPS();
+    uint32_t lastFrameTime;
+    uint32_t frameTimes[MAX_FPS_FRAME_TIMES];
+    int frameTimesIndex;
 };
 

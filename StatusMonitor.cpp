@@ -215,6 +215,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controlle
     this->pPPU = pPPU;
     this->pController1 = pController1;
     cpuRunning = false;
+    frameTimesIndex = 0;
 
     // Create an SDL window to display the status
 
@@ -246,6 +247,8 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controlle
 
     // Draw a black background
     SDL_FillRect(screenSurface, NULL, colorBlack);
+
+    lastFrameTime = SDL_GetTicks();
 }
 
 inline void plotPixel(uint8_t pixel, SDL_PixelFormat *format, uint32_t *address)
@@ -370,8 +373,8 @@ void StatusMonitor::DrawDisplay()
 
     SDL_FillRect(screenSurface, &border, colorWhite);
     // Draw pattern 1 pixels
-    SDL_BlitSurface(pPPU->pPattern1, NULL, screenSurface, &pattern1Rect);
-
+    SDL_BlitScaled(pPPU->pPattern1, NULL, screenSurface, &pattern1Rect);
+    // For some reason the app crashes if we use SDL_Blit() instead of SDL_BlitScale() with pattern1.
 
     // Draw pattern table 2
     DrawPattern(pPPU->pPattern2, &pPPU->pPatternTable->mem[0x1000]);
@@ -415,20 +418,20 @@ bool StatusMonitor::EventLoop()
 
                     // Check for controller input
                     case SDLK_END:
-                        printf("End pressed\n");
+                        //printf("End pressed\n");
                         pController1->buttons.select = true;
                         break;
                     case SDLK_DOWN:
-                        printf("Down pressed\n");
+                        //printf("Down pressed\n");
                         pController1->buttons.down = true;
                         break;
                     case SDLK_UP:
-                        printf("Up pressed\n");
+                        //printf("Up pressed\n");
                         pController1->buttons.up = true;
                         break;
                     case SDLK_RETURN:
                     case SDLK_KP_ENTER:
-                        printf("Enter pressed\n");
+                        //printf("Enter pressed\n");
                         pController1->buttons.start = true;
                         break;
                     case SDLK_RIGHT:
@@ -458,20 +461,16 @@ bool StatusMonitor::EventLoop()
 
                     // Check for controller input
                     case SDLK_END:
-                        printf("End pressed\n");
                         pController1->buttons.select = false;
                         break;
                     case SDLK_DOWN:
-                        printf("Down pressed\n");
                         pController1->buttons.down = false;
                         break;
                     case SDLK_UP:
-                        printf("Up pressed\n");
                         pController1->buttons.up = false;
                         break;
                     case SDLK_RETURN:
                     case SDLK_KP_ENTER:
-                        printf("Enter pressed\n");
                         pController1->buttons.start = false;
                         break;
                     case SDLK_RIGHT:
@@ -546,6 +545,8 @@ void StatusMonitor::Draw()
     DrawDisplay();
 
     DrawCPU_Status();
+
+    LimitFPS();
 
     // Update the surface
     SDL_UpdateWindowSurface(window);
@@ -624,6 +625,51 @@ void StatusMonitor::SetupColors()
     colorLightGreen = COLOR_FROM_SDL_COLOR(screenSurface->format, sdlColorLightGreen);
     colorLightBlue = COLOR_FROM_SDL_COLOR(screenSurface->format, sdlColorLightBlue);
     colorLightGray = COLOR_FROM_SDL_COLOR(screenSurface->format, sdlColorLightGray);
+}
+
+void StatusMonitor::LimitFPS()
+{
+    // Get the number of milliseconds elapsed since the last frame
+    uint32_t nextFrameTime = SDL_GetTicks();
+    uint32_t frameTicks = nextFrameTime - lastFrameTime;
+
+    // Add a delay if we're running too fast
+    if (frameTicks <= 16)
+    {
+        SDL_Delay(16 - frameTicks);
+        nextFrameTime = SDL_GetTicks();
+        frameTicks = nextFrameTime - lastFrameTime;
+    }
+    else
+    {
+        printf("F");    // Print that we've detected a frame dip
+
+    }
+
+    // Store this frame time to the list of frame times
+    frameTimes[frameTimesIndex] = frameTicks;
+    frameTimesIndex = (frameTimesIndex + 1) % MAX_FPS_FRAME_TIMES;
+
+    lastFrameTime = nextFrameTime;
+
+    uint32_t totalTicks = 0;
+    // Count total frame ticks
+    for (int i = 0; i < MAX_FPS_FRAME_TIMES; ++i)
+        totalTicks += frameTimes[i];
+
+    // Compute FPS
+    double averageFrameTime = (double)totalTicks;
+    double fps = 1000 * MAX_FPS_FRAME_TIMES / averageFrameTime;
+    char fpsString[16];
+    sprintf(fpsString, "%02.2f\n", fps);
+
+    // Draw the fps string to an SDL surface
+    SDL_Surface *pFont = FNT_Render(fpsString, sdlColorWhite);
+    SDL_Rect fontRect = { NES_MARGIN,
+                          STATUS_MONITOR_HEIGHT - NES_MARGIN - NES_MARGIN,
+                          pFont->w,
+                          pFont->h };
+    SDL_BlitSurface(pFont, NULL, screenSurface, &fontRect);
 }
 
 void StatusMonitor::DrawCPU_Status()

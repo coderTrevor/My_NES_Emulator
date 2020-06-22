@@ -130,10 +130,11 @@ void NES_Main()
     //iNES_File ROM("01-basics.nes");
     //iNES_File ROM("05-zp_xy.nes");
     //iNES_File ROM("all_instrs.nes");
-    iNES_File ROM("nestest.nes");
+    //iNES_File ROM("nestest.nes");
     //iNES_File ROM("scanline.nes");
     //iNES_File ROM("Super Mario Bros. (World).nes");
-    //iNES_File ROM("DK.nes");
+    iNES_File ROM("DK.nes");
+    //iNES_File ROM("Popeye.nes");
 
     // TEMP:
     // Insert the prg data into the RAM

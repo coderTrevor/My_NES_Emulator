@@ -23,7 +23,7 @@ public:
     void write(uint16_t addr, uint8_t data);
     void attachPeripheral(uint16_t startAddr, uint16_t endAddr, Peripheral *pPer);
 
-    CPU_6502 *pCPU;
+    //CPU_6502 *pCPU;
     bool isCPU_Bus;
 
 protected:

@@ -12,7 +12,7 @@ CPU_6502::CPU_6502()
     running = true;
     nmi = false;
 
-    bus.pCPU = this;
+    //bus.pCPU = this;
 }
 
 
