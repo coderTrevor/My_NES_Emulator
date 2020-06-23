@@ -190,6 +190,9 @@ typedef union
     uint8_t allBytes[4];
 }OAM_ENTRY;
 
+
+#define SCANLINES 262 /* Just for a hack. Could be wrong, who's counting? */
+
 class PPU :
     public Peripheral
 {
@@ -200,8 +203,9 @@ public:
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
 
-    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int paletteNumber);
+    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber);
     void DrawSprite(uint8_t tileNumber, int x, int y, uint32_t *pPixels, int paletteNumber, bool flipHorizontal);
+    void DrawNametables();
     int  GetPaletteNumberForTile(int x, int y, uint16_t nametableBase);
     void UpdateImage();
     void SetupPaletteValues();
@@ -227,6 +231,7 @@ public:
     SDL_Surface *pPattern1;
     SDL_Surface *pPattern2;
     SDL_Surface *pPaletteSurface;
+    SDL_Surface *pNametableSurface;
 
     // Registers
     CONTROL_REG controlReg;
@@ -240,6 +245,13 @@ public:
     uint16_t VRAM_Address;  // Address on the PPU bus that the CPU will access
     bool lowByteActive;     // True if the next access will modify the low byte, false if accessing the high byte
     uint8_t readBuffer;     // Reads from VRAM (but not Palette memory) are delayed by one read
+
+    // scroll info
+    uint8_t scrollX_ForScanline[SCANLINES]; // HACKHACK - store scroll value for each scanline
+    int lastValidScanlineForScroll;
+    uint8_t scrollY;
+    bool writingToScrollY;
+    
 
     int scanline;
     bool paused;

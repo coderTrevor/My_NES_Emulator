@@ -32,6 +32,11 @@ SDL_Rect paletteRect = { pattern1Rect.x,
                          16 * 16,
                          4 * 16 };
 
+SDL_Rect nametableRect = { STATUS_MONITOR_WIDTH - NES_MARGIN - NAMETABLE_WIDTH,
+                           paletteRect.y - NES_MARGIN - NAMETABLE_HEIGHT,
+                           NAMETABLE_WIDTH,
+                           NAMETABLE_HEIGHT };
+
 #ifdef SYSTEM_SIMPLE
 StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU)
 {
@@ -391,6 +396,17 @@ void StatusMonitor::DrawDisplay()
 
     // Draw palette display
     SDL_BlitScaled(pPPU->pPaletteSurface, NULL, screenSurface, &paletteRect);
+    
+    // Draw a border around the nametable display
+    border = { nametableRect.x - 1,
+               nametableRect.y - 1,
+               nametableRect.w + 2,
+               nametableRect.h + 2 };
+
+    // Draw nametable display
+    SDL_FillRect(screenSurface, &border, colorWhite);
+    pPPU->DrawNametables();
+    SDL_BlitScaled(pPPU->pNametableSurface, NULL, screenSurface, &nametableRect);
 }
 
 
@@ -399,6 +415,7 @@ bool StatusMonitor::EventLoop()
     SDL_Event event;
     if (SDL_PollEvent(&event))
     {
+        uint16_t i;
         switch (event.type)
         {
             case SDL_KEYDOWN:
@@ -445,6 +462,37 @@ bool StatusMonitor::EventLoop()
                         break;
                     case SDLK_z:
                         pController1->buttons.a = true;
+                        break;
+                    // Code to find location of lives in memory of Donkey Kong
+                    case SDLK_2:
+                        for (uint32_t i = 0; i < 0x7FF; ++i)
+                        {
+                            if (pCPU->bus.read((uint16_t)i) == 2)
+                            {
+                                memoryLocations.push_back(i);
+                            }
+                        }
+                        break;
+                    case SDLK_1:
+                        for (uint32_t i = 0; i < 0x7FF; ++i)
+                        {
+                            if (pCPU->bus.read((uint16_t)i) != 1)
+                            {
+                                memoryLocations.remove(i);
+                            }
+                        }
+                        printf("\n%d locations\n", memoryLocations.size());
+                        break;
+                    case SDLK_0:
+                        for (uint32_t i = 0; i < 0x7FF; ++i)
+                        {
+                            if (pCPU->bus.read((uint16_t)i) != 0)
+                            {
+                                memoryLocations.remove(i);
+                             }
+                        }
+                        printf("\n%d locations\n", memoryLocations.size());
+                        printf("0x%X\n", memoryLocations.front());
                         break;
                 }
 

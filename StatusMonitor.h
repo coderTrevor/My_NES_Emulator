@@ -6,6 +6,7 @@
 #include "PPU.h"
 #include "NES_Controller.h"
 #include <SDL.h>
+#include <list>
 
 #ifdef SIMPLE_SYSTEM
 #define STATUS_MONITOR_WIDTH    640
@@ -30,6 +31,11 @@ extern SDL_Rect simpleDisplayRect;
 #define NES_PATTERN_WIDTH   128
 #define NES_PATTERN_HEIGHT  128
 #define NES_MARGIN          8
+
+#define NAMETABLE_RES_X    32 * 8 * 2    /* 2 screens wide, each 32 tiles of 8 pixels */
+#define NAMETABLE_WIDTH    (NAMETABLE_RES_X / 2)
+#define NAMETABLE_RES_Y    30 * 8 * 2    /* 2 screens tall, each 30 tiles of 8 pixels */
+#define NAMETABLE_HEIGHT   (NAMETABLE_RES_Y / 2)
 
 #define MAX_FPS_FRAME_TIMES 120
 
@@ -122,5 +128,6 @@ protected:
     uint32_t lastFrameTime;
     uint32_t frameTimes[MAX_FPS_FRAME_TIMES];
     int frameTimesIndex;
+    std::list<uint16_t> memoryLocations;
 };
 

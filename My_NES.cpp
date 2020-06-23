@@ -132,8 +132,8 @@ void NES_Main()
     //iNES_File ROM("all_instrs.nes");
     //iNES_File ROM("nestest.nes");
     //iNES_File ROM("scanline.nes");
-    iNES_File ROM("Super Mario Bros. (World).nes");
-    //iNES_File ROM("DK.nes");
+    //iNES_File ROM("Super Mario Bros. (World).nes");
+    iNES_File ROM("DK.nes");
     //iNES_File ROM("Popeye.nes");
     //iNES_File ROM("Ice Climber (USA, Europe).nes");
 

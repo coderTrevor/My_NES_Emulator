@@ -56,6 +56,16 @@ PPU::PPU(CPU_6502 *pCPU)
 
     SetupPaletteValues();
 
+    // Initialize the surface for the nametable display
+    pNametableSurface = SDL_CreateRGBSurface(0,
+                                             NAMETABLE_RES_X,
+                                             NAMETABLE_RES_Y,
+                                             32,
+                                             0xFF000000,
+                                             0x00FF0000,
+                                             0x0000FF00,
+                                             0x000000FF);
+
     scanline = 0;
     paused = false;
     lowByteActive = false;
@@ -64,10 +74,18 @@ PPU::PPU(CPU_6502 *pCPU)
     controlReg.entireRegister = 0;
     maskReg.entireRegister = 0;
     OAM_Address = 0;
+
+    for(int i = 0; i < SCANLINES; ++i)
+        scrollX_ForScanline[i] = 0;
+    lastValidScanlineForScroll = 0;
+    scrollY = 0;
+    writingToScrollY = false;
 }
 
 PPU::~PPU()
 {
+    SDL_FreeSurface(pNametableSurface);
+    SDL_FreeSurface(pPaletteSurface);
     SDL_FreeSurface(pPattern2);
     SDL_FreeSurface(pPattern1);
     SDL_FreeSurface(pTV_Display);
@@ -173,8 +191,15 @@ void PPU::write(uint16_t address, uint8_t value)
         /*printf("OAM now:\n");
         for (int i = 0; i < 64; ++i)
         {
+            if (OAM_Memory[i].yPos >= 248)
+                continue;
+
             printf("Sprite %d\t - (%d, %d)\t - \n", OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos);
-        }*/
+            if (OAM_Memory[i].tileIndex != 0 && OAM_Memory[i].xPos == 0)
+                paused = true;
+        }
+        printf("\n");*/
+
 
         return;
     }
@@ -182,7 +207,7 @@ void PPU::write(uint16_t address, uint8_t value)
     address &= 0x7;
 
     //printf("PPU reg %d - 0x%X\n", address, value);
-
+    int i;
     switch (address)
     {
         case PPUCTRL:
@@ -226,6 +251,21 @@ void PPU::write(uint16_t address, uint8_t value)
 
         case PPUSCROLL:
             // xxxx xxxx	fine scroll position(two writes : X scroll, Y scroll)
+            if (writingToScrollY)
+                scrollY = value;
+            else
+            {
+                uint8_t prevScrollX = scrollX_ForScanline[lastValidScanlineForScroll];
+                for (i = lastValidScanlineForScroll; i < scanline; ++i)
+                    scrollX_ForScanline[i] = prevScrollX;
+                for (i = scanline; i < SCANLINES; ++i)
+                    scrollX_ForScanline[i] = value;
+                lastValidScanlineForScroll = scanline;
+                //printf("Scanline: %d - Scroll: (%d, %d)\n", scanline, scrollX, scrollY);
+            }
+
+            writingToScrollY = !writingToScrollY;
+
             break;
 
         case PPUADDR:
@@ -301,13 +341,13 @@ void PPU::write(uint16_t address, uint8_t value)
     }
 }
 
-void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int paletteNumber)
+void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber)
 {
     // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
     uint8_t tileLSB[8];
     uint8_t tileMSB[8];
 
-    uint32_t pixelOffset = tileY * 256 * 8 + tileX * 8;
+    uint32_t pixelOffset = tileY * pixelsPerRow * 8 + tileX * 8;
     uint32_t patternOffset = tileNumber * 16;
 
     uint8_t *pPatternMemory = pPatternTable->mem;
@@ -353,7 +393,7 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
         pPixels[pixelOffset++] = colors[pix2];
         pPixels[pixelOffset++] = colors[pix1];
 
-        pixelOffset += 256 - 8;
+        pixelOffset += pixelsPerRow - 8;
     }
 }
 
@@ -430,6 +470,56 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
     }
 }
 
+void PPU::DrawNametables()
+{
+    uint16_t  xMirrorOffset,  yMirrorOffset;
+    SDL_LockSurface(pNametableSurface);
+
+    uint32_t pixelOffset = 0;
+
+    uint32_t *pPixels = (uint32_t *)pNametableSurface->pixels;
+
+    // Base nametable address controlReg.baseNametableAddress
+    // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
+    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);
+    
+    int yOff = 0;
+    int xOff = 0;
+    uint16_t nametableOff = 0;
+
+    for (int y = 0; y < 60; ++y)
+    {
+        if (y > 29)
+            yOff = -30;
+        else
+            yOff = 0;
+        for (int x = 0; x < 64; ++x)
+        {
+
+            if (x > 31)
+            {
+                xOff = -32;
+                nametableOff = 0x400;
+            }
+            else
+            {
+                xOff = 0;
+                nametableOff = 0;
+            }
+
+            uint8_t tileID = pNameTable->mem[nametableBase + nametableOff + (y + yOff) * 32 + x + xOff];
+
+            // Get palette number for the current tile (1-4)
+            int paletteNumber = GetPaletteNumberForTile(x + xOff, (y + yOff), nametableBase + nametableOff);
+
+            // Copy tile to image x, y
+            CopyTileToImage(tileID, x, y, pPixels, NAMETABLE_RES_X, paletteNumber);
+        }
+    }
+
+    SDL_UnlockSurface(pNametableSurface);
+}
+
 int PPU::GetPaletteNumberForTile(int x, int y, uint16_t nametableBase)
 {
     // The palette entry defines the palette for four 2x2 sets of tiles.
@@ -477,17 +567,27 @@ void PPU::UpdateImage()
     // TODO: draw sprites behind background
 
     // Copy background tiles from nametable
+
     for (int y = 0; y < 30; ++y)
     {
-        for (int x = 0; x < 32; ++x)
+        int tileX_Offset = scrollX_ForScanline[y * 8] / 8;
+
+        for (int x = tileX_Offset; x < 32 + tileX_Offset; ++x)
         {
-            uint8_t tileID = pNameTable->mem[nametableBase + y * 32 + x];
+            if (x < 32)
+            {
+                uint8_t tileID = pNameTable->mem[nametableBase + y * 32 + x];
 
-            // Get palette number for the current tile (1-4)
-            int paletteNumber = GetPaletteNumberForTile(x, y, nametableBase);
+                // Get palette number for the current tile (1-4)
+                int paletteNumber = GetPaletteNumberForTile(x, y, nametableBase);
 
-            // Copy tile to image x, y
-            CopyTileToImage(tileID, x, y, pPixels, paletteNumber);
+                // Copy tile to image x, y
+                CopyTileToImage(tileID, x - tileX_Offset, y, pPixels, 256, paletteNumber);
+            }
+            else
+            {
+                // TODO
+            }
         }
     }
 
