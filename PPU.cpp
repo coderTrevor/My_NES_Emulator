@@ -13,7 +13,7 @@ PPU::PPU(CPU_6502 *pCPU)
     pPatternTable = new RAM(&PPU_Bus, 0, 0x1FFF);
  
     // 2 KB name table
-    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x2FFF, 2048);
+    pNameTable = new RAM(&PPU_Bus, 0x2000, 0x27FF, 2048);
 
     // 256 byytes of palette data
     pPalette = new Palette(&PPU_Bus);
@@ -75,9 +75,15 @@ PPU::PPU(CPU_6502 *pCPU)
     maskReg.entireRegister = 0;
     OAM_Address = 0;
 
-    for(int i = 0; i < SCANLINES; ++i)
+    for (int i = 0; i < SCANLINES; ++i)
+    {
         scrollX_ForScanline[i] = 0;
+        controlReg_ForScanline[i] = 0;
+    }
+
     lastValidScanlineForScroll = 0;
+    lastValidScanlineForControl = 0;
+
     scrollY = 0;
     writingToScrollY = false;
 
@@ -235,6 +241,7 @@ void PPU::write(uint16_t address, uint8_t value)
     address &= 0x7;
 
     //printf("PPU reg %d - 0x%X\n", address, value);
+    uint8_t prevControlReg;
     int i;
     switch (address)
     {
@@ -247,10 +254,17 @@ void PPU::write(uint16_t address, uint8_t value)
                 CONTROL_REG newReg;
                 newReg.entireRegister = value;
                 if (newReg.generateNMI_OnVBlank)
-                    pCPU->TriggerNMI();                    
+                    pCPU->TriggerNMI();
             }
 
             controlReg.entireRegister = value;
+
+            prevControlReg = controlReg_ForScanline[lastValidScanlineForControl];
+            for (i = lastValidScanlineForControl; i < scanline; ++i)
+                controlReg_ForScanline[i] = prevControlReg;
+            for (i = scanline; i < SCANLINES; ++i)
+                controlReg_ForScanline[i] = value;
+            lastValidScanlineForControl = scanline;
             
             if(debugOutput)
                 printf("PPUCTRL: 0x%X\n", value);
@@ -279,6 +293,7 @@ void PPU::write(uint16_t address, uint8_t value)
 
         case PPUSCROLL:
             // xxxx xxxx	fine scroll position(two writes : X scroll, Y scroll)
+            //printf("Scroll written on line %d 0x%X\n", scanline, value);
             if (writingToScrollY)
                 scrollY = value;
             else
@@ -289,7 +304,7 @@ void PPU::write(uint16_t address, uint8_t value)
                 for (i = scanline; i < SCANLINES; ++i)
                     scrollX_ForScanline[i] = value;
                 lastValidScanlineForScroll = scanline;
-                //printf("Scanline: %d - Scroll: (%d, %d)\n", scanline, scrollX, scrollY);
+                //printf("Scanline: %d - Scroll: (%d, %d)\n", scanline, scrollX_ForScanline[scanline], scrollY);
             }
 
             writingToScrollY = !writingToScrollY;
@@ -527,7 +542,7 @@ void PPU::DrawNametables()
 
     // Base nametable address controlReg.baseNametableAddress
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);
+    uint16_t nametableBase = 0x2000;// +(controlReg.baseNametableAddress * 0x400);
     
     int yOffset = 0;
     int xOffset = 0;
@@ -609,7 +624,7 @@ void PPU::UpdateImage()
     
     // Base nametable address controlReg.baseNametableAddress
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-    uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);    
+    uint16_t nametableBase = 0x2000;// +(controlReg.baseNametableAddress * 0x400);
 
     // TODO: draw sprites behind background
 
@@ -621,6 +636,9 @@ void PPU::UpdateImage()
     for (int y = 0; y < 30; ++y)
     {
         int tileX_Offset = scrollX_ForScanline[y * 8] / 8;
+        CONTROL_REG ctrl;
+        ctrl.entireRegister = controlReg_ForScanline[y * 8];
+        //printf("Control register: 0x%X for line %d\n", ctrl.baseNametableAddress, y * 8);
 
         for (int x = tileX_Offset; x < 32 + tileX_Offset; ++x)
         {
@@ -628,12 +646,18 @@ void PPU::UpdateImage()
             if (x >= 32)
             {
                 xOffset = -32;
-                nametableOffset = horizontalMirrorOffset;
+                if (ctrl.baseNametableAddress == 1)
+                    nametableOffset = 0;
+                else
+                    nametableOffset = horizontalMirrorOffset;
             }
             else
             {
-                xOffset = 0;
-                nametableOffset = 0;
+               xOffset = 0;
+               if (ctrl.baseNametableAddress == 1)
+                    nametableOffset = horizontalMirrorOffset;
+               else
+                    nametableOffset = 0;
             }
 
             // Get the tileID from the name table

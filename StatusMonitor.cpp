@@ -732,11 +732,10 @@ void StatusMonitor::LimitFPS()
         nextFrameTime = SDL_GetTicks();
         frameTicks = nextFrameTime - lastFrameTime;
     }
-    else
+    /*else
     {
         printf("F");    // Print that we've detected a frame dip
-
-    }
+    }*/
 
     // Store this frame time to the list of frame times
     frameTimes[frameTimesIndex] = frameTicks;

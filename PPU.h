@@ -234,7 +234,7 @@ public:
     SDL_Surface *pNametableSurface;
 
     // Registers
-    CONTROL_REG controlReg;
+    CONTROL_REG controlReg; // TODO: Might want to get rid of this in favor of per-line setting
     STATUS_REG  statusReg;
     MASK_REG    maskReg;
 
@@ -247,8 +247,10 @@ public:
     uint8_t readBuffer;     // Reads from VRAM (but not Palette memory) are delayed by one read
 
     // scroll info
-    uint8_t scrollX_ForScanline[SCANLINES]; // HACKHACK - store scroll value for each scanline
+    uint8_t scrollX_ForScanline[SCANLINES];    // HACKHACK - store scroll value for each scanline
     int lastValidScanlineForScroll;
+    uint8_t controlReg_ForScanline[SCANLINES]; // HACKHACK - store control register value for each scanline
+    int lastValidScanlineForControl;
     uint8_t scrollY;
     bool writingToScrollY;
     uint16_t horizontalMirrorOffset;
