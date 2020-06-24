@@ -466,9 +466,11 @@ bool StatusMonitor::EventLoop()
                         pController1->buttons.left = true;
                         break;
                     case SDLK_x:
+                    case SDLK_KP_0:
                         pController1->buttons.a = true;
                         break;
                     case SDLK_z:
+                    case SDLK_KP_DECIMAL:
                         pController1->buttons.b = true;
                         break;
                     // Take a snapshot of memory
@@ -565,9 +567,11 @@ bool StatusMonitor::EventLoop()
                         pController1->buttons.left = false;
                         break;
                     case SDLK_x:
+                    case SDLK_KP_0:
                         pController1->buttons.a = false;
                         break;
                     case SDLK_z:
+                    case SDLK_KP_DECIMAL:
                         pController1->buttons.b = false;
                         break;
                 }

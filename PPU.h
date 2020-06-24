@@ -204,7 +204,7 @@ public:
     void write(uint16_t address, uint8_t value);
 
     void CopyTileToImage(uint8_t tileNumber, int tileX, int fineX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber);
-    void DrawSprite(uint8_t tileNumber, int x, int y, uint32_t *pPixels, int paletteNumber, bool flipHorizontal);
+    void DrawSprite(uint8_t tileNumber, int x, int y, uint32_t *pPixels, OAM_ATTRIBUTES_BYTE attributes);
     void DrawNametables();
     int  GetPaletteNumberForTile(int x, int y, uint16_t nametableBase);
     void UpdateImage();

@@ -485,8 +485,13 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int fineX, int tileY, u
     }
 }
 
-void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int paletteNumber, bool flipHorizontal)
+void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, OAM_ATTRIBUTES_BYTE attributes)
 {
+    int paletteNumber = attributes.paletteNumber + 4;
+    bool flipHorizontal = attributes.flipHorizontally;
+    bool flipVertical = attributes.flipVertically;
+    bool drawBehindBackground = attributes.drawBehindBackground;
+
     // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
     uint8_t tileLSB[8];
     uint8_t tileMSB[8];
@@ -518,13 +523,26 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
     colors[2] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[1]];
     colors[3] = paletteColorValues[pPalette->paletteMem.paletteTable[paletteNumber].colors[2]];
 
+    // Determine the color of empty background (only used by sprites drawn behind background objects)
+    uint32_t emptyBackgroundColor = paletteColorValues[pPalette->paletteMem.universalBackground];
+
     // Extract data for the tile, bitplane of low bits is stored before bitplane of high bits
     SDL_memcpy(tileLSB, pPatternMemory + patternOffset, 8);
     SDL_memcpy(tileMSB, pPatternMemory + patternOffset + 8, 8);
 
-    // Copy pixels
-    // for each row
-    for (int y = 0; y < tileHeight; ++y)
+    // Determine how rows of pixels should be evaluated; top-down or bottom-up
+    int yChange = 1;
+    int yStart = 0;
+    int yDone = tileHeight;
+    if (flipVertical)
+    {
+        yChange = -1;
+        yStart = tileHeight - 1;
+        yDone = -1;
+    }
+    
+    // Copy each each row of pixels
+    for (int y = yStart; y != yDone; y += yChange)
     {
         uint8_t lowBytes = tileLSB[y];
         uint8_t highBytes = tileMSB[y];
@@ -539,6 +557,17 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
         pixels[5] = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
         pixels[6] = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
         pixels[7] = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
+
+        if (drawBehindBackground)
+        {
+            // Check each sprite pixel against what's already on the screen
+            for (int i = 0; i < tileWidth; ++i)
+            {
+                // Make the sprte's pixel transparent if there's something on the background
+                if (pPixels[pixelOffset + i] != emptyBackgroundColor)
+                    pixels[i] = 0;
+            }
+        }
 
         // Copy the pixels that aren't transparent
         if (flipHorizontal)
@@ -708,7 +737,11 @@ void PPU::UpdateImage()
         if (OAM_Memory[i].yPos >= 0xEF)
             continue;
 
-        DrawSprite(OAM_Memory[i].tileIndex, OAM_Memory[i].xPos, OAM_Memory[i].yPos + 1, pPixels, OAM_Memory[i].attributes.paletteNumber + 4, OAM_Memory[i].attributes.flipHorizontally);
+        DrawSprite(OAM_Memory[i].tileIndex,
+                   OAM_Memory[i].xPos,
+                   OAM_Memory[i].yPos + 1,
+                   pPixels,
+                   OAM_Memory[i].attributes);
     }
 
     SDL_UnlockSurface(pTV_Display);
