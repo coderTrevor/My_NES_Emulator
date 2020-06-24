@@ -203,7 +203,7 @@ public:
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
 
-    void CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber);
+    void CopyTileToImage(uint8_t tileNumber, int tileX, int fineX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber);
     void DrawSprite(uint8_t tileNumber, int x, int y, uint32_t *pPixels, int paletteNumber, bool flipHorizontal);
     void DrawNametables();
     int  GetPaletteNumberForTile(int x, int y, uint16_t nametableBase);

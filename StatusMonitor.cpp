@@ -466,10 +466,10 @@ bool StatusMonitor::EventLoop()
                         pController1->buttons.left = true;
                         break;
                     case SDLK_x:
-                        pController1->buttons.b = true;
+                        pController1->buttons.a = true;
                         break;
                     case SDLK_z:
-                        pController1->buttons.a = true;
+                        pController1->buttons.b = true;
                         break;
                     // Take a snapshot of memory
                     case SDLK_m:
@@ -565,10 +565,10 @@ bool StatusMonitor::EventLoop()
                         pController1->buttons.left = false;
                         break;
                     case SDLK_x:
-                        pController1->buttons.b = false;
+                        pController1->buttons.a = false;
                         break;
                     case SDLK_z:
-                        pController1->buttons.a = false;
+                        pController1->buttons.b = false;
                         break;
                 }
                 break;

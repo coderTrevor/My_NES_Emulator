@@ -404,13 +404,37 @@ void PPU::write(uint16_t address, uint8_t value)
     }
 }
 
-void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber)
+void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int fineX, int tileY, uint32_t *pPixels, int pixelsPerRow, int paletteNumber)
 {
     // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
     uint8_t tileLSB[8];
     uint8_t tileMSB[8];
 
-    uint32_t pixelOffset = tileY * pixelsPerRow * 8 + tileX * 8;
+    uint32_t pixelOffset = tileY * pixelsPerRow * 8 + tileX * 8 - fineX;
+    int tileWidth = 8;
+    int startPixel = 0;
+
+    // If tile 0 scrolls off the screen, chop off the left part of it
+    if (tileX == 0 && fineX > 0)
+    {
+        pixelOffset += fineX;
+        startPixel = fineX;
+    }
+
+    // tile 32 is on the far right of the screen, so chop off the right part of it
+    if (tileX == 32)
+        tileWidth = fineX;
+
+    // fineX of 8 is a hack to indicate we're drawing to the nametable display, so don't actually offset anything by fineX
+    if (fineX == 8)
+    {
+        tileWidth = 8;
+        startPixel = 0;
+        
+        if(tileX != 0)
+            pixelOffset += 8;
+    }
+
     uint32_t patternOffset = tileNumber * 16;
 
     uint8_t *pPatternMemory = pPatternTable->mem;
@@ -431,36 +455,36 @@ void PPU::CopyTileToImage(uint8_t tileNumber, int tileX, int tileY, uint32_t *pP
     SDL_memcpy(tileMSB, pPatternMemory + patternOffset + 8, 8);
 
     // Copy pixels
+    uint8_t pixels[8];
+
     // for each row
     for (int y = 0; y < 8; ++y)
     {
         uint8_t lowBytes = tileLSB[y];
         uint8_t highBytes = tileMSB[y];
 
-        // plot each of the 8 pixels in the tile row
-        uint8_t pix1 = lowBytes & 1 | ((highBytes & 1) << 1);
-        uint8_t pix2 = (lowBytes & 2) >> 1 | (highBytes & 2);
-        uint8_t pix3 = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
-        uint8_t pix4 = (lowBytes & 8) >> 3 | ((highBytes & 8) >> 2);
-        uint8_t pix5 = (lowBytes & 0x10) >> 4 | ((highBytes & 0x10) >> 3);
-        uint8_t pix6 = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
-        uint8_t pix7 = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
-        uint8_t pix8 = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
+        // Determine palette value of each of the 8 pixels in the tile row
+        pixels[7] = lowBytes & 1 | ((highBytes & 1) << 1);
+        pixels[6] = (lowBytes & 2) >> 1 | (highBytes & 2);
+        pixels[5] = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
+        pixels[4] = (lowBytes & 8) >> 3 | ((highBytes & 8) >> 2);
+        pixels[3] = (lowBytes & 0x10) >> 4 | ((highBytes & 0x10) >> 3);
+        pixels[2] = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
+        pixels[1] = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
+        pixels[0] = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
+        
+        // Plot pixels to the image buffer
+        for (int pixX = startPixel; pixX < tileWidth; ++pixX)
+            pPixels[pixelOffset++] = colors[pixels[pixX]];
 
-        pPixels[pixelOffset++] = colors[pix8];
-        pPixels[pixelOffset++] = colors[pix7];
-        pPixels[pixelOffset++] = colors[pix6];
-        pPixels[pixelOffset++] = colors[pix5];
-        pPixels[pixelOffset++] = colors[pix4];
-        pPixels[pixelOffset++] = colors[pix3];
-        pPixels[pixelOffset++] = colors[pix2];
-        pPixels[pixelOffset++] = colors[pix1];
-
-        pixelOffset += pixelsPerRow - 8;
+        // Advance pixelOffset to the beginning of the tile on the next line
+        pixelOffset += pixelsPerRow - tileWidth;
+        
+        if (tileX == 0)
+            pixelOffset += startPixel;
     }
 }
 
-// TODO : handle literal edge cases when sprites are on the edge of the screen
 void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int paletteNumber, bool flipHorizontal)
 {
     // Tiles are stored LSB of an entire tile followed by MSB of an entire tile
@@ -575,7 +599,7 @@ void PPU::DrawNametables()
             int paletteNumber = GetPaletteNumberForTile(x + xOffset, (y + yOffset), nametableBase + nametableOffset);
 
             // Copy tile to image x, y
-            CopyTileToImage(tileID, x, y, pPixels, NAMETABLE_RES_X, paletteNumber);
+            CopyTileToImage(tileID, x, 8, y, pPixels, NAMETABLE_RES_X, paletteNumber);
         }
     }
 
@@ -632,15 +656,17 @@ void PPU::UpdateImage()
     int yOffset = 0;
     int xOffset = 0;
     uint16_t nametableOffset = 0;
+    int fineX;
 
     for (int y = 0; y < 30; ++y)
     {
         int tileX_Offset = scrollX_ForScanline[y * 8] / 8;
+        int fineX = scrollX_ForScanline[y * 8] & 0x7;
         CONTROL_REG ctrl;
         ctrl.entireRegister = controlReg_ForScanline[y * 8];
         //printf("Control register: 0x%X for line %d\n", ctrl.baseNametableAddress, y * 8);
 
-        for (int x = tileX_Offset; x < 32 + tileX_Offset; ++x)
+        for (int x = tileX_Offset; x < 33 + tileX_Offset; ++x)
         {
             // Determine if we're drawing from nametable 1 or nametable 2
             if (x >= 32)
@@ -667,7 +693,7 @@ void PPU::UpdateImage()
             int paletteNumber = GetPaletteNumberForTile(x + xOffset, y, nametableBase + nametableOffset);
 
             // Copy tile to image x, y
-            CopyTileToImage(tileID, x - tileX_Offset, y, pPixels, 256, paletteNumber);
+            CopyTileToImage(tileID, x - tileX_Offset, fineX, y, pPixels, 256, paletteNumber);
         }
     }
 
