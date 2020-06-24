@@ -453,6 +453,17 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
     uint8_t tileMSB[8];
 
     uint32_t pixelOffset = y * 256 + x;
+
+    // Don't let sprites go off the bottom of the screen
+    int tileHeight = 8;
+    if (y + tileHeight >= 240)
+        tileHeight = (240 - y);
+
+    // Don't let sprites go off the right edge of the screen
+    int tileWidth = 8;
+    if (x + tileWidth >= 256)
+        tileWidth = (256 - x);
+
     uint32_t patternOffset = tileNumber * 16;
 
     uint8_t *pPatternMemory = pPatternTable->mem;
@@ -474,47 +485,35 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
 
     // Copy pixels
     // for each row
-    for (int y = 0; y < 8; ++y)
+    for (int y = 0; y < tileHeight; ++y)
     {
         uint8_t lowBytes = tileLSB[y];
         uint8_t highBytes = tileMSB[y];
+        uint8_t pixels[8];
 
         // Determine the color of each pixel
-        uint8_t pix1 = lowBytes & 1 | ((highBytes & 1) << 1);
-        uint8_t pix2 = (lowBytes & 2) >> 1 | (highBytes & 2);
-        uint8_t pix3 = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
-        uint8_t pix4 = (lowBytes & 8) >> 3 | ((highBytes & 8) >> 2);
-        uint8_t pix5 = (lowBytes & 0x10) >> 4 | ((highBytes & 0x10) >> 3);
-        uint8_t pix6 = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
-        uint8_t pix7 = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
-        uint8_t pix8 = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
+        pixels[0] = lowBytes & 1 | ((highBytes & 1) << 1);
+        pixels[1] = (lowBytes & 2) >> 1 | (highBytes & 2);
+        pixels[2] = (lowBytes & 4) >> 2 | ((highBytes & 4) >> 1);
+        pixels[3] = (lowBytes & 8) >> 3 | ((highBytes & 8) >> 2);
+        pixels[4] = (lowBytes & 0x10) >> 4 | ((highBytes & 0x10) >> 3);
+        pixels[5] = (lowBytes & 0x20) >> 5 | ((highBytes & 0x20) >> 4);
+        pixels[6] = (lowBytes & 0x40) >> 6 | ((highBytes & 0x40) >> 5);
+        pixels[7] = (lowBytes & 0x80) >> 7 | ((highBytes & 0x80) >> 6);
 
         // Copy the pixels that aren't transparent
         if (flipHorizontal)
         {
-
-            pix1 ? pPixels[pixelOffset++] = colors[pix1] : ++pixelOffset;
-            pix2 ? pPixels[pixelOffset++] = colors[pix2] : ++pixelOffset;
-            pix3 ? pPixels[pixelOffset++] = colors[pix3] : ++pixelOffset;
-            pix4 ? pPixels[pixelOffset++] = colors[pix4] : ++pixelOffset;
-            pix5 ? pPixels[pixelOffset++] = colors[pix5] : ++pixelOffset;
-            pix6 ? pPixels[pixelOffset++] = colors[pix6] : ++pixelOffset;
-            pix7 ? pPixels[pixelOffset++] = colors[pix7] : ++pixelOffset;
-            pix8 ? pPixels[pixelOffset++] = colors[pix8] : ++pixelOffset;
+            for(int i = 0; i < tileWidth; ++i)
+                pixels[i] ? pPixels[pixelOffset++] = colors[pixels[i]] : ++pixelOffset;
         }
         else
         {
-            pix8 ? pPixels[pixelOffset++] = colors[pix8] : ++pixelOffset;
-            pix7 ? pPixels[pixelOffset++] = colors[pix7] : ++pixelOffset;
-            pix6 ? pPixels[pixelOffset++] = colors[pix6] : ++pixelOffset;
-            pix5 ? pPixels[pixelOffset++] = colors[pix5] : ++pixelOffset;
-            pix4 ? pPixels[pixelOffset++] = colors[pix4] : ++pixelOffset;
-            pix3 ? pPixels[pixelOffset++] = colors[pix3] : ++pixelOffset;
-            pix2 ? pPixels[pixelOffset++] = colors[pix2] : ++pixelOffset;
-            pix1 ? pPixels[pixelOffset++] = colors[pix1] : ++pixelOffset;
+            for (int i = 0; i < tileWidth; ++i)
+                pixels[7 - i] ? pPixels[pixelOffset++] = colors[pixels[7 - i]] : ++pixelOffset;
         }
 
-        pixelOffset += 256 - 8;
+        pixelOffset += 256 - tileWidth;
     }
 }
 
