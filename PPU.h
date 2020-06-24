@@ -251,7 +251,8 @@ public:
     int lastValidScanlineForScroll;
     uint8_t scrollY;
     bool writingToScrollY;
-    
+    uint16_t horizontalMirrorOffset;
+    uint16_t verticalMirrorOffset;
 
     int scanline;
     bool paused;

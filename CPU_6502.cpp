@@ -137,6 +137,7 @@ void CPU_6502::ADC_Generic(uint8_t value)
     else
     {
         // both a and value are the same sign
+        // If a and result have different signs, an overflow occurred
         if (IS_NEGATIVE(a) != IS_NEGATIVE(result))
             flags.overflow = true;
         else
@@ -167,6 +168,13 @@ void CPU_6502::ORA_Generic(uint8_t value)
 // a = a - value - !c
 void CPU_6502::SBC_Generic(uint8_t value)
 {
+    // Simplest-possible implementation of SBC_Generic, using ADC_Generic:
+    value = ~value;
+    ADC_Generic(value);
+    return;
+
+    /* This implementation is buggy and kept Mario from running past the first screen.
+    It does pass nestest.nes however, so it may prove useful in developing a more-extensive test in the future.
     // This is almost certainly less difficult than I'm making it
     int signedA = (int8_t)a;
     int signedValue = (int8_t)value;
@@ -190,6 +198,7 @@ void CPU_6502::SBC_Generic(uint8_t value)
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+    */
 }
 
 // 00: BRK - break - 7, 1

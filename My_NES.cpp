@@ -129,11 +129,17 @@ void NES_Main()
 
     //iNES_File ROM("01-basics.nes");
     //iNES_File ROM("05-zp_xy.nes");
-    //iNES_File ROM("all_instrs.nes");
+    //iNES_File ROM("03-dummy_reads.nes");
     //iNES_File ROM("nestest.nes");
     //iNES_File ROM("scanline.nes");
-    //iNES_File ROM("Super Mario Bros. (World).nes");
-    iNES_File ROM("DK.nes");
+    iNES_File ROM("Super Mario Bros. (World).nes");
+    //iNES_File ROM("DK.nes");
+
+    // Patch donkey kong to always return 2 lives
+    /*cpu.bus.patchRead = true;
+    cpu.bus.patchedAddress = 0x55;
+    cpu.bus.patchedData = 2;
+    */
     //iNES_File ROM("Popeye.nes");
     //iNES_File ROM("Ice Climber (USA, Europe).nes");
 

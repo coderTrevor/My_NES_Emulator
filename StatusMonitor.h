@@ -42,6 +42,7 @@ extern SDL_Rect simpleDisplayRect;
 extern SDL_Rect nesDisplayRect;
 extern SDL_Rect pattern1Rect;
 extern SDL_Rect pattern2Rect;
+extern bool cpuRunning;
 
 class StatusMonitor
 {
@@ -116,8 +117,6 @@ public:
     PPU *pPPU;
     NES_Controller *pController1;
 
-    bool cpuRunning;
-
 protected:
     void StatusMonitor::CopyTileToPixels(SDL_PixelFormat *format, uint8_t *pTileLSB, uint8_t *pTileMSB, uint32_t *pPixels, uint32_t tileX, uint32_t tileY);
     void DrawPattern(SDL_Surface *pSurface, uint8_t *pPatternMemory);
@@ -128,6 +127,12 @@ protected:
     uint32_t lastFrameTime;
     uint32_t frameTimes[MAX_FPS_FRAME_TIMES];
     int frameTimesIndex;
+
+    // memory locations to keep track of, for identifying variables in running games
     std::list<uint16_t> memoryLocations;
+    uint8_t memSnapshot1[0x800];
+    //uint8_t memSnapshot2[0x800];
+    bool memoryChanged[0x800];
+    bool snapshotTaken;
 };
 

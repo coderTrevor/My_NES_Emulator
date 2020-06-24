@@ -7,6 +7,8 @@
 
 #define COLOR_FROM_SDL_COLOR(format, sdlColor) SDL_MapRGB(format, sdlColor.r, sdlColor.g, sdlColor.b)
 
+bool cpuRunning;
+
 SDL_Rect simpleDisplayRect = { SIMPLE_DISPLAY_X,
                                 SIMPLE_DISPLAY_Y,
                                 SIMPLE_DISPLAY_WIDTH * SIMPLE_DISPLAY_PIXEL_SCALE,
@@ -221,6 +223,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controlle
     this->pController1 = pController1;
     cpuRunning = false;
     frameTimesIndex = 0;
+    snapshotTaken = false;
 
     // Create an SDL window to display the status
 
@@ -416,6 +419,7 @@ bool StatusMonitor::EventLoop()
     if (SDL_PollEvent(&event))
     {
         uint16_t i;
+        uint8_t data;
         switch (event.type)
         {
             case SDL_KEYDOWN:
@@ -423,6 +427,10 @@ bool StatusMonitor::EventLoop()
                 {
                     case SDLK_s:
                         pCPU->Step();
+                        cpuRunning = false;
+                        break;
+                    case SDLK_d:
+                        debugOutput = !debugOutput;
                         break;
                     case SDLK_r:
                         pCPU->Reset();
@@ -462,6 +470,35 @@ bool StatusMonitor::EventLoop()
                         break;
                     case SDLK_z:
                         pController1->buttons.a = true;
+                        break;
+                    // Take a snapshot of memory
+                    case SDLK_m:
+                        if (!snapshotTaken)
+                        {
+                            printf("Taking memory snapshot\n");
+                            for (i = 0; i < 0x800; ++i)
+                            {
+                                memSnapshot1[i] = pCPU->bus.read(i);
+                                memoryChanged[i] = true;
+                            }
+
+                            snapshotTaken = true;
+                        }
+                        else
+                        {
+                            printf("\n\nComparing memory snapshot\n");
+                            for (i = 0; i < 0x800; ++i)
+                            {
+                                data = pCPU->bus.read(i);
+                                if (memSnapshot1[i] == data)
+                                    memoryChanged[i] = false;
+
+                                memSnapshot1[i] = data;
+
+                                if(memoryChanged[i])
+                                    printf("0x%X : 0x%X\n", i, data);
+                            }                            
+                        }
                         break;
                     // Code to find location of lives in memory of Donkey Kong
                     case SDLK_2:

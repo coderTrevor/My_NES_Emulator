@@ -80,6 +80,10 @@ PPU::PPU(CPU_6502 *pCPU)
     lastValidScanlineForScroll = 0;
     scrollY = 0;
     writingToScrollY = false;
+
+    // Setup vertical mirroring, horizontal scrolling
+    verticalMirrorOffset = 0;
+    horizontalMirrorOffset = 0x400;
 }
 
 PPU::~PPU()
@@ -124,6 +128,7 @@ uint8_t PPU::read(uint16_t address)
             data = statusReg.entireRegister;
             statusReg.vBlank = false;
             lowByteActive = false;
+            writingToScrollY = false;
             break;
 
         case OAMADDR:
@@ -146,7 +151,30 @@ uint8_t PPU::read(uint16_t address)
         case PPUDATA:
             // dddd dddd	PPU data read / write
             //paused = true;
-            printf("PPUDATA read from 0x%X\n", VRAM_Address);
+            //printf("PPUDATA read from 0x%X\n", VRAM_Address);
+
+            if (VRAM_Address >= 0x3000 && VRAM_Address <= 0x3EFF)
+            {
+                printf("Mirroring 0x%X - ", VRAM_Address);
+                VRAM_Address -= 0x1000;
+            }
+
+            if (VRAM_Address >= 0x2000 && VRAM_Address <= 0x23FF)
+            {
+                printf("W Nametable 0 - 0x%X\n", VRAM_Address);
+            }
+            else if (VRAM_Address >= 0x2400 && VRAM_Address <= 0x27FF)
+            {
+                printf("W Nametable 1 - 0x%X\n", VRAM_Address);
+            }
+            if (VRAM_Address >= 0x2800 && VRAM_Address <= 0x2BFF)
+            {
+                printf("W Nametable 2 - 0x%X\n", VRAM_Address);
+            }
+            else if (VRAM_Address >= 0x2C00 && VRAM_Address <= 0x2FFF)
+            {
+                printf("W Nametable 3 - 0x%X\n", VRAM_Address);
+            }
 
             // reads from VRAM are delayed by one read, so we'll be returning the buffered data from the previous read
             data = readBuffer;
@@ -280,20 +308,17 @@ void PPU::write(uint16_t address, uint8_t value)
 
                 VRAM_Address += value;
                 
-                if (VRAM_Address >= 0xA654 && VRAM_Address <= 0xA679)
+                
+                //printf("PPU Address: 0x%X ", VRAM_Address);
+
+                // Handle nametable mirroring
+                if (VRAM_Address >= 0x3000 && VRAM_Address <= 0x3EFF)
                 {
-                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
-                    VRAM_Address &= 0x3FFF;
+                    VRAM_Address -= 0x1000;
+                    //printf("M 0x%X\n", VRAM_Address);
                 }
-                else if (VRAM_Address >= 0xD8DE && VRAM_Address < 0xDADE)
-                {
-                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
-                    VRAM_Address &= 0x3FFF;
-                }
-                else if (VRAM_Address > 0x3FFF)
-                {
-                    printf("Address: 0x%X address & 0x3FFF: 0x%X\n", VRAM_Address, VRAM_Address & 0x3FFF);
-                }
+                //else
+                  //  printf("\n");
             }
             else
             {
@@ -323,6 +348,29 @@ void PPU::write(uint16_t address, uint8_t value)
 
             printf("control reg: 0x%X\n", controlReg.entireRegister);*/
 
+            if (VRAM_Address >= 0x3000 && VRAM_Address <= 0x3EFF)
+            {
+                printf("Mirroring 0x%X - ", VRAM_Address);
+                VRAM_Address -= 0x1000;
+            }
+
+            /*if (VRAM_Address >= 0x2000 && VRAM_Address <= 0x23FF)
+            {
+                printf("W Nametable 0 - 0x%X\n", VRAM_Address);
+            }
+            else if (VRAM_Address >= 0x2400 && VRAM_Address <= 0x27FF)
+            {
+                printf("W Nametable 1 - 0x%X\n", VRAM_Address);
+            }
+            if (VRAM_Address >= 0x2800 && VRAM_Address <= 0x2BFF)
+            {
+                printf("W Nametable 2 - 0x%X\n", VRAM_Address);
+            }
+            else if (VRAM_Address >= 0x2C00 && VRAM_Address <= 0x2FFF)
+            {
+                printf("W Nametable 3 - 0x%X\n", VRAM_Address);
+            }
+            */
             PPU_Bus.write(VRAM_Address, value);
             
             if (controlReg.VRAM_AddressIncBy32)
@@ -472,7 +520,6 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, int p
 
 void PPU::DrawNametables()
 {
-    uint16_t  xMirrorOffset,  yMirrorOffset;
     SDL_LockSurface(pNametableSurface);
 
     uint32_t pixelOffset = 0;
@@ -483,34 +530,35 @@ void PPU::DrawNametables()
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
     uint16_t nametableBase = 0x2000 + (controlReg.baseNametableAddress * 0x400);
     
-    int yOff = 0;
-    int xOff = 0;
-    uint16_t nametableOff = 0;
+    int yOffset = 0;
+    int xOffset = 0;
+    uint16_t nametableOffset = 0;
 
     for (int y = 0; y < 60; ++y)
     {
         if (y > 29)
-            yOff = -30;
-        else
-            yOff = 0;
+        {
+            yOffset = -30;
+            nametableOffset = verticalMirrorOffset;
+        }
         for (int x = 0; x < 64; ++x)
         {
 
             if (x > 31)
             {
-                xOff = -32;
-                nametableOff = 0x400;
+                xOffset = -32;
+                nametableOffset = horizontalMirrorOffset;
             }
             else
             {
-                xOff = 0;
-                nametableOff = 0;
+                xOffset = 0;
+                nametableOffset = 0;
             }
 
-            uint8_t tileID = pNameTable->mem[nametableBase + nametableOff + (y + yOff) * 32 + x + xOff];
+            uint8_t tileID = pNameTable->mem[nametableBase + nametableOffset + (y + yOffset) * 32 + x + xOffset];
 
             // Get palette number for the current tile (1-4)
-            int paletteNumber = GetPaletteNumberForTile(x + xOff, (y + yOff), nametableBase + nametableOff);
+            int paletteNumber = GetPaletteNumberForTile(x + xOffset, (y + yOffset), nametableBase + nametableOffset);
 
             // Copy tile to image x, y
             CopyTileToImage(tileID, x, y, pPixels, NAMETABLE_RES_X, paletteNumber);
@@ -567,6 +615,9 @@ void PPU::UpdateImage()
     // TODO: draw sprites behind background
 
     // Copy background tiles from nametable
+    int yOffset = 0;
+    int xOffset = 0;
+    uint16_t nametableOffset = 0;
 
     for (int y = 0; y < 30; ++y)
     {
@@ -574,20 +625,26 @@ void PPU::UpdateImage()
 
         for (int x = tileX_Offset; x < 32 + tileX_Offset; ++x)
         {
-            if (x < 32)
+            // Determine if we're drawing from nametable 1 or nametable 2
+            if (x >= 32)
             {
-                uint8_t tileID = pNameTable->mem[nametableBase + y * 32 + x];
-
-                // Get palette number for the current tile (1-4)
-                int paletteNumber = GetPaletteNumberForTile(x, y, nametableBase);
-
-                // Copy tile to image x, y
-                CopyTileToImage(tileID, x - tileX_Offset, y, pPixels, 256, paletteNumber);
+                xOffset = -32;
+                nametableOffset = horizontalMirrorOffset;
             }
             else
             {
-                // TODO
+                xOffset = 0;
+                nametableOffset = 0;
             }
+
+            // Get the tileID from the name table
+            uint8_t tileID = pNameTable->mem[nametableBase + nametableOffset + y * 32 + x + xOffset];
+
+            // Get palette number for the current tile (1-4)
+            int paletteNumber = GetPaletteNumberForTile(x + xOffset, y, nametableBase + nametableOffset);
+
+            // Copy tile to image x, y
+            CopyTileToImage(tileID, x - tileX_Offset, y, pPixels, 256, paletteNumber);
         }
     }
 

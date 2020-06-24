@@ -26,6 +26,11 @@ public:
     //CPU_6502 *pCPU;
     bool isCPU_Bus;
 
+    // patched data read
+    bool patchRead;
+    uint16_t patchedAddress;
+    uint8_t patchedData;
+
 protected:
     int numPeripherals;
     MEM_MAP_ENTRY peripherals[MAX_PERIPHERALS];

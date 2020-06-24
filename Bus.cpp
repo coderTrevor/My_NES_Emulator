@@ -10,6 +10,7 @@ Bus::Bus()
 {
     numPeripherals = 0;
     isCPU_Bus = true;
+    patchRead = false;
 }
 
 
@@ -24,6 +25,10 @@ uint8_t Bus::read(uint16_t addr)
     if (addr == 0xfe)
         return rand() & 0xFF;
 #endif
+
+    // See if we're overriding an address
+    if (patchRead && addr == patchedAddress)
+        return patchedData;
 
     for (int i = 0; i < numPeripherals; ++i)
     {
