@@ -15,7 +15,7 @@ PPU::PPU(CPU_6502 *pCPU)
     // 2 KB name table
     pNameTable = new RAM(&PPU_Bus, 0x2000, 0x27FF, 2048);
 
-    // 256 byytes of palette data
+    // 256 bytes of palette data
     pPalette = new Palette(&PPU_Bus);
 
     // Initialize TV display
@@ -563,9 +563,9 @@ void PPU::DrawSprite(uint8_t tileNumber, int x, int y, uint32_t * pPixels, OAM_A
             // Check each sprite pixel against what's already on the screen
             for (int i = 0; i < tileWidth; ++i)
             {
-                // Make the sprte's pixel transparent if there's something on the background
+                // Make the sprite's pixel transparent if there's something on the background
                 if (pPixels[pixelOffset + i] != emptyBackgroundColor)
-                    pixels[i] = 0;
+                    flipHorizontal ? pixels[i] = 0 : pixels[7 - i] = 0;
             }
         }
 
@@ -677,18 +677,16 @@ void PPU::UpdateImage()
     
     // Base nametable address controlReg.baseNametableAddress
     // (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
-    uint16_t nametableBase = 0x2000;// +(controlReg.baseNametableAddress * 0x400);
-
-    // TODO: draw sprites behind background
+    uint16_t nametableBase = 0x2000;
 
     // Copy background tiles from nametable
     int yOffset = 0;
     int xOffset = 0;
     uint16_t nametableOffset = 0;
-    int fineX;
 
     for (int y = 0; y < 30; ++y)
     {
+        // Get the scroll x and control register values the CPU set when it was handling this set of scanlines
         int tileX_Offset = scrollX_ForScanline[y * 8] / 8;
         int fineX = scrollX_ForScanline[y * 8] & 0x7;
         CONTROL_REG ctrl;
@@ -697,7 +695,7 @@ void PPU::UpdateImage()
 
         for (int x = tileX_Offset; x < 33 + tileX_Offset; ++x)
         {
-            // Determine if we're drawing from nametable 1 or nametable 2
+            // Determine if we're drawing from nametable 0 or nametable 1
             if (x >= 32)
             {
                 xOffset = -32;
@@ -726,10 +724,7 @@ void PPU::UpdateImage()
         }
     }
 
-    // Draw foreground sprites
-    uint16_t patternTableAddress = 0;
-    if (controlReg.spritePatternTableSelect)
-        patternTableAddress += 0x1000;
+    // Draw sprites
     // Draw higher-index sprites first so lower-index sprites will overlap them
     for (int i = 63; i >= 0; --i)
     {

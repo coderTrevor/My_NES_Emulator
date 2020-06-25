@@ -1,10 +1,10 @@
 #include "iNES_File.h"
+#include "Snapshot.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-
-iNES_File::iNES_File(char *fileName)
+iNES_File::iNES_File(const char *fileName)
 {
     OpenFile(fileName);
 }
@@ -16,7 +16,7 @@ iNES_File::~iNES_File()
     free(pPRGdata);
 }
 
-bool iNES_File::OpenFile(char * fileName)
+bool iNES_File::OpenFile(const char * fileName)
 {
     pPRGdata = NULL;
     pCHRdata = NULL;
@@ -44,7 +44,7 @@ bool iNES_File::OpenFile(char * fileName)
 
     if (strcmp(fileType, "NES\x1A") != 0)
     {
-        printf("%s is not an iNES file!\n");
+        printf("%s is not an iNES file!\n", fileName);
         return false;
     }
 

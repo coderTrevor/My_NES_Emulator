@@ -45,10 +45,10 @@ typedef struct I_NES_HEADER
 class iNES_File
 {
 public:
-    iNES_File(char *fileName);
+    iNES_File(const char *fileName);
     ~iNES_File();
 
-    bool OpenFile(char *fileName);
+    bool OpenFile(const char *fileName);
 
     I_NES_HEADER header;
     uint32_t prgSize;

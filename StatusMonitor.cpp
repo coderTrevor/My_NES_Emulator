@@ -4,10 +4,12 @@
 #include <SDL.h>
 #include "SDL_picofont.h"
 #include "System.h"
+#include "Snapshot.h"
 
 #define COLOR_FROM_SDL_COLOR(format, sdlColor) SDL_MapRGB(format, sdlColor.r, sdlColor.g, sdlColor.b)
 
 bool cpuRunning;
+extern Snapshot *pSnapshot;
 
 SDL_Rect simpleDisplayRect = { SIMPLE_DISPLAY_X,
                                 SIMPLE_DISPLAY_Y,
@@ -532,6 +534,15 @@ bool StatusMonitor::EventLoop()
                         }
                         printf("\n%d locations\n", memoryLocations.size());
                         printf("0x%X\n", memoryLocations.front());
+                        break;
+
+                    // save snapshot
+                    case SDLK_F1:
+                        pSnapshot->Save();
+                        break;
+                    // load snapshot
+                    case SDLK_F12:
+                        pSnapshot->Load();
                         break;
                 }
 

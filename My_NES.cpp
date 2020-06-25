@@ -9,6 +9,7 @@
 #include "iNES_File.h"
 #include "System.h"
 #include "NES_Controller.h"
+#include "Snapshot.h"
 
 bool debugOutput = false;
 
@@ -117,6 +118,9 @@ void SimpleMain()
 #endif
 
 #ifdef SYSTEM_NES
+
+Snapshot *pSnapshot;
+
 void NES_Main()
 {
     CPU_6502 cpu;
@@ -127,21 +131,36 @@ void NES_Main()
     NES_Controller nesController1(&(cpu.bus));
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
+    const char *ROM_Name = "Super Mario Bros. (World).nes";
+    //const char *ROM_Name = "DK.nes";
+
+    // Patch SMB to always return 9 lives
+    if (strcmp(ROM_Name, "Super Mario Bros. (World).nes") == 0)
+    {
+        cpu.bus.patchRead = true;
+        cpu.bus.patchedAddress = 0x75A;
+        cpu.bus.patchedData = 8;
+    }
+
+    // Patch donkey kong to always return 2 lives
+    if (strcmp(ROM_Name, "DK.nes") == 0)
+    {
+        cpu.bus.patchRead = true;
+        cpu.bus.patchedAddress = 0x55;
+        cpu.bus.patchedData = 2;
+    }
+    
     //iNES_File ROM("01-basics.nes");
     //iNES_File ROM("05-zp_xy.nes");
     //iNES_File ROM("03-dummy_reads.nes");
     //iNES_File ROM("nestest.nes");
     //iNES_File ROM("scanline.nes");
-    iNES_File ROM("Super Mario Bros. (World).nes");
-    //iNES_File ROM("DK.nes");
-
-    // Patch donkey kong to always return 2 lives
-    /*cpu.bus.patchRead = true;
-    cpu.bus.patchedAddress = 0x55;
-    cpu.bus.patchedData = 2;
-    */
+    iNES_File ROM(ROM_Name);    
     //iNES_File ROM("Popeye.nes");
     //iNES_File ROM("Ice Climber (USA, Europe).nes");
+
+    // Create snapshot for this ROM
+    pSnapshot = new Snapshot(ROM_Name, &ram, &cpu, &ppu);
 
     // TEMP:
     // Insert the prg data into the RAM

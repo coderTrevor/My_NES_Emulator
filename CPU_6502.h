@@ -58,6 +58,7 @@ public:
 
     FLAGS flags;
     bool running;
+    bool nmi;
 
 protected:
     // operations
@@ -232,6 +233,5 @@ protected:
 
     // temp
     int opsHandled;
-    bool nmi;
 };
 
