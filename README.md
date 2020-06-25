@@ -29,7 +29,7 @@ Sound support is still a work-in-progress.
 ![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot15.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
 ![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot16.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
 ![Screenshot running Super Mario Bros with no graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot17.png "Emulator Screenshot of Super Mario Bros. with no graphical errors")
-![Screenshot running Super Mario Bros played to completion](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot10.png "Emulator Screenshot of Super Mario Bros. played to completion")
+![Screenshot running Super Mario Bros played to completion](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot18.png "Emulator Screenshot of Super Mario Bros. played to completion")
 
 ## Goals
 - [x] Should be capable of running a commercial NES game, not one of the really hard-to-emulate ones like Battletoads, but maybe one of the medium-difficulty ones like SMB. 
