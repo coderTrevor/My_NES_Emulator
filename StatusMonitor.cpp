@@ -41,6 +41,10 @@ SDL_Rect nametableRect = { STATUS_MONITOR_WIDTH - NES_MARGIN - NAMETABLE_WIDTH,
                            NAMETABLE_WIDTH,
                            NAMETABLE_HEIGHT };
 
+SDL_Rect apuStatusPos = { 16,
+                           STATUS_MONITOR_HEIGHT - 75,
+                           24, 0 }; // set for spacing
+
 #ifdef SYSTEM_SIMPLE
 StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU)
 {
@@ -217,11 +221,12 @@ bool StatusMonitor::EventLoop()
 #endif
 
 #ifdef SYSTEM_NES
-StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controller *pController1)
+StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, APU *pAPU, NES_Controller *pController1)
 {
     this->pRAM = pRAM;
     this->pCPU = pCPU;
     this->pPPU = pPPU;
+    this->pAPU = pAPU;
     this->pController1 = pController1;
     cpuRunning = false;
     frameTimesIndex = 0;
@@ -231,7 +236,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controlle
 
     screenSurface = NULL;     // the surface to render to
 
-    SDL_Init(SDL_INIT_VIDEO);              // Initialize SDL2
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);   // Initialize SDL2
 
                                            // Create an application window with the following settings:
     window = SDL_CreateWindow(
@@ -240,8 +245,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controlle
         SDL_WINDOWPOS_UNDEFINED,           // initial y position
         STATUS_MONITOR_WIDTH,              // width, in pixels
         STATUS_MONITOR_HEIGHT,             // height, in pixels
-        0
-    );
+        0);
 
     // Check that the window was successfully created
     if (window == NULL) {
@@ -652,6 +656,7 @@ void StatusMonitor::Draw()
     DrawDisplay();
 
     DrawCPU_Status();
+    DrawAPU_Status();
 
     LimitFPS();
 
@@ -778,6 +783,20 @@ void StatusMonitor::LimitFPS()
     SDL_BlitSurface(pFont, NULL, screenSurface, &fontRect);
 }
 
+void StatusMonitor::DrawAPU_Status()
+{
+    // Start with the status flags
+    int x = apuStatusPos.x; // were to start drawing
+    int y = apuStatusPos.y;
+    int w = apuStatusPos.w; // how much space to put between each status bit
+
+    DrawStatusReg("P1", pAPU->status.pulse1_Enabled, x + (w * 0), y);
+    DrawStatusReg("P2", pAPU->status.pulse2_Enabled, x + (w * 1), y);
+    DrawStatusReg("T", pAPU->status.triangleEnabled, x + (w * 2), y);
+    DrawStatusReg("N", pAPU->status.noiseEnabled, x + (w * 3), y);
+    DrawStatusReg("D", pAPU->status.dmcEnabled, x + (w * 4), y);
+}
+
 void StatusMonitor::DrawCPU_Status()
 {
     // Start with the status flags
@@ -796,7 +815,7 @@ void StatusMonitor::DrawCPU_Status()
     DrawReg("Y", pCPU->y, STATUS_MONITOR_WIDTH - (16 * 8), 16 * 4);
     DrawReg("PC", pCPU->PC, STATUS_MONITOR_WIDTH - (16 * 8), 16 * 5, false);
     DrawReg("SP", 0x100 + pCPU->SP, STATUS_MONITOR_WIDTH - (16 * 8), 16 * 6, false);
-    
+
     // Now draw some memory and/or a disassembly
     // TODO
 }

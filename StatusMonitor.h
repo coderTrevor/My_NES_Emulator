@@ -5,6 +5,7 @@
 #include "System.h"
 #include "PPU.h"
 #include "NES_Controller.h"
+#include "APU.h"
 #include <SDL.h>
 #include <list>
 
@@ -48,13 +49,14 @@ class StatusMonitor
 {
 public:
     StatusMonitor(RAM *pRAM, CPU_6502 *pCPU);
-    StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, NES_Controller *pController1);
+    StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, APU *pAPU, NES_Controller *pController1);
     ~StatusMonitor();
 
     bool EventLoop();
 
     void Draw();
 
+    void DrawAPU_Status();
     void DrawCPU_Status();
 
     void DrawDisplay();
@@ -116,6 +118,7 @@ public:
     CPU_6502 *pCPU;
     PPU *pPPU;
     NES_Controller *pController1;
+    APU *pAPU;
 
 protected:
     void StatusMonitor::CopyTileToPixels(SDL_PixelFormat *format, uint8_t *pTileLSB, uint8_t *pTileMSB, uint32_t *pPixels, uint32_t tileX, uint32_t tileY);

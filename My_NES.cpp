@@ -10,6 +10,7 @@
 #include "System.h"
 #include "NES_Controller.h"
 #include "Snapshot.h"
+#include "APU.h"
 
 bool debugOutput = false;
 
@@ -129,18 +130,21 @@ void NES_Main()
     ppu.PPU_Bus.isCPU_Bus = false;
 
     NES_Controller nesController1(&(cpu.bus));
+
+    APU apu(&cpu.bus);
+
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     const char *ROM_Name = "Super Mario Bros. (World).nes";
     //const char *ROM_Name = "DK.nes";
 
     // Patch SMB to always return 9 lives
-    if (strcmp(ROM_Name, "Super Mario Bros. (World).nes") == 0)
+    /*if (strcmp(ROM_Name, "Super Mario Bros. (World).nes") == 0)
     {
         cpu.bus.patchRead = true;
         cpu.bus.patchedAddress = 0x75A;
         cpu.bus.patchedData = 8;
-    }
+    }*/
 
     // Patch donkey kong to always return 2 lives
     if (strcmp(ROM_Name, "DK.nes") == 0)
@@ -183,7 +187,7 @@ void NES_Main()
     memcpy(ppu.pPatternTable->mem, ROM.pCHRdata, ROM.chrRomSize);
 
     // Create the status monitor
-    StatusMonitor statusMonitor(&ram, &cpu, &ppu, &nesController1);
+    StatusMonitor statusMonitor(&ram, &cpu, &ppu, &apu, &nesController1);
 
     cpu.Reset();
 
