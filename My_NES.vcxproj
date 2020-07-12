@@ -155,6 +155,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="APU.h" />
+    <ClInclude Include="Audio.h" />
     <ClInclude Include="Bus.h" />
     <ClInclude Include="iNES_File.h" />
     <ClInclude Include="Mnemonics.h" />
@@ -169,6 +170,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="APU.cpp" />
+    <ClCompile Include="Audio.c" />
     <ClCompile Include="Bus.cpp" />
     <ClCompile Include="CPU_6502.cpp" />
     <ClCompile Include="font.c" />

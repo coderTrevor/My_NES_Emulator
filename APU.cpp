@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "APU.h"
 #include "Bus.h"
+#include "Audio.h"
 
 APU::APU(Bus *pBus) : Peripheral(pBus, 0x4000, 0x4013)
 {
@@ -44,21 +45,29 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
 
         case APU_REG_PULSE1_0:
+            pulse1.reg0.entireRegister = data;
             break;
         case APU_REG_PULSE1_1:
+            pulse1.reg1_Sweep.entireRegister = data;
             break;
         case APU_REG_PULSE1_2:
+            pulse1.reg2_TimerLower8 = data;
             break;
         case APU_REG_PULSE1_3:
+            pulse1.reg3_CounterReset_TimerHigh3.entireRegister = data;
             break;
 
         case APU_REG_PULSE2_0:
+            pulse2.reg0.entireRegister = data;
             break;
         case APU_REG_PULSE2_1:
+            pulse2.reg1_Sweep.entireRegister = data;
             break;
         case APU_REG_PULSE2_2:
+            pulse2.reg2_TimerLower8 = data;
             break;
         case APU_REG_PULSE2_3:
+            pulse2.reg3_CounterReset_TimerHigh3.entireRegister = data;
             break;
 
         case APU_REG_TRIANGLE_0:
@@ -82,4 +91,86 @@ void APU::write(uint16_t addr, uint8_t data)
             printf("APU::write() called with unknown address, 0x%X\n", addr);
             break;
     }
+}
+
+// Emulates the APU and sends samples to our audio subsystem in Audio.c
+// timeDuration - how many seconds of audio we should generate
+void APU::ProcessAudio(double timeDuration)
+{
+    // Process each audio channel and output the sample to the audio hardware
+
+    // determine how many audio samples we'll be sending
+    int sampleCount = (int)(timeDuration * SAMPLES_PER_SECOND) + 1;
+    double *pSampleBuffer = new double[sampleCount];
+    int currentSample = 0;
+
+    // Keep generating samples until we've generated the requested duration
+    // TODO: Keep track of any differences
+    double apuCycles = 0.0;
+    while (timeDuration >= 0.0)
+    {
+        while (apuCycles <= APU_CYCLES_PER_SAMPLE && timeDuration >= 0.0)
+        {
+            // Process pulse1 channel
+            if (status.pulse1_Enabled)
+            {
+                --pulse1.timer;
+
+                if (pulse1.timer == 0xFFFF)
+                {
+                    // Reset internal timer
+                    pulse1.timer = pulse1.reg2_TimerLower8 | (uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8;
+                    pulse1.timer += 1;
+
+                    // Advance position in duty cycle
+                    pulse1.dutyCyclePosition = (pulse1.dutyCyclePosition + 1) & 3;  // 0 - 7
+
+                    pulse1.pulseOn = DUTY_CYCLE_WAVEFORM[pulse1.reg0.dutyCycle][pulse1.dutyCyclePosition];
+                }
+            }
+
+            // Process pulse2 channel
+            if (status.pulse2_Enabled)
+            {
+                --pulse2.timer;
+
+                if (pulse2.timer == 0xFFFF)
+                {
+                    // Reset internal timer
+                    pulse2.timer = pulse2.reg2_TimerLower8 | (uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8;
+                    pulse2.timer += 1;
+
+                    // Advance position in duty cycle
+                    pulse2.dutyCyclePosition = (pulse2.dutyCyclePosition + 1) & 3;  // 0 - 7
+
+                    pulse2.pulseOn = DUTY_CYCLE_WAVEFORM[pulse2.reg0.dutyCycle][pulse2.dutyCyclePosition];
+                }
+            }
+
+            timeDuration -= SECONDS_PER_APU_CYCLE;
+            apuCycles += 1.0;
+        }
+        
+        if (timeDuration > 0.0)
+        {
+            // mix the channels and add the current sample to the output buffer
+            if (pulse1.pulseOn)
+                pSampleBuffer[currentSample] = 0.5;
+            else
+                pSampleBuffer[currentSample] = -0.5;
+
+            if (pulse2.pulseOn)
+                pSampleBuffer[currentSample] += 0.5;
+            else
+                pSampleBuffer[currentSample] -= 0.5;
+
+            ++currentSample;
+        }
+
+        apuCycles -= APU_CYCLES_PER_SAMPLE;
+    }
+
+    SendAudioData(pSampleBuffer, currentSample);
+
+    delete pSampleBuffer;
 }

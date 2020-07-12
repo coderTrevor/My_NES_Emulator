@@ -5,6 +5,7 @@
 #include "SDL_picofont.h"
 #include "System.h"
 #include "Snapshot.h"
+#include "Audio.h"
 
 #define COLOR_FROM_SDL_COLOR(format, sdlColor) SDL_MapRGB(format, sdlColor.r, sdlColor.g, sdlColor.b)
 
@@ -238,7 +239,7 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, APU *pAPU, NE
 
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);   // Initialize SDL2
 
-                                           // Create an application window with the following settings:
+    // Create an application window with the following settings:
     window = SDL_CreateWindow(
         "My NES Emulator",                 // window title
         SDL_WINDOWPOS_UNDEFINED,           // initial x position
@@ -263,6 +264,8 @@ StatusMonitor::StatusMonitor(RAM *pRAM, CPU_6502 *pCPU, PPU *pPPU, APU *pAPU, NE
     SDL_FillRect(screenSurface, NULL, colorBlack);
 
     lastFrameTime = SDL_GetTicks();
+
+    InitAudio();
 }
 
 inline void plotPixel(uint8_t pixel, SDL_PixelFormat *format, uint32_t *address)
@@ -597,7 +600,7 @@ bool StatusMonitor::EventLoop()
         }
     }
 
-    Draw();
+    double elapsedFrameTime = Draw();
 
     if (cpuRunning && pCPU->running && !pPPU->paused)
     {
@@ -633,6 +636,8 @@ bool StatusMonitor::EventLoop()
         }
         pPPU->scanline = 0;
 
+        pAPU->ProcessAudio(elapsedFrameTime);
+
         if (debugOutput)
             printf("End of frame\n");
         //pPPU->statusReg.vBlank = false;
@@ -648,7 +653,8 @@ StatusMonitor::~StatusMonitor()
     // TODO: Cleanup
 }
 
-void StatusMonitor::Draw()
+// returns time elapsed since last frame
+double StatusMonitor::Draw()
 {
     // Draw a black background
     SDL_FillRect(screenSurface, NULL, colorBlack);
@@ -658,10 +664,12 @@ void StatusMonitor::Draw()
     DrawCPU_Status();
     DrawAPU_Status();
 
-    LimitFPS();
+    double elapsed = LimitFPS();
 
     // Update the surface
     SDL_UpdateWindowSurface(window);
+
+    return elapsed;
 }
 
 void StatusMonitor::DrawStatusReg(char *regName, bool set, int x, int y)
@@ -739,7 +747,8 @@ void StatusMonitor::SetupColors()
     colorLightGray = COLOR_FROM_SDL_COLOR(screenSurface->format, sdlColorLightGray);
 }
 
-void StatusMonitor::LimitFPS()
+// returns the amount of time elapsed since the last frame
+double StatusMonitor::LimitFPS()
 {
     // Get the number of milliseconds elapsed since the last frame
     uint32_t nextFrameTime = SDL_GetTicks();
@@ -759,18 +768,18 @@ void StatusMonitor::LimitFPS()
 
     // Store this frame time to the list of frame times
     frameTimes[frameTimesIndex] = frameTicks;
-    frameTimesIndex = (frameTimesIndex + 1) % MAX_FPS_FRAME_TIMES;
+    frameTimesIndex = (frameTimesIndex + 1) % FRAMES_FOR_FPS_CALC;
 
     lastFrameTime = nextFrameTime;
 
     uint32_t totalTicks = 0;
     // Count total frame ticks
-    for (int i = 0; i < MAX_FPS_FRAME_TIMES; ++i)
+    for (int i = 0; i < FRAMES_FOR_FPS_CALC; ++i)
         totalTicks += frameTimes[i];
 
     // Compute FPS
     double averageFrameTime = (double)totalTicks;
-    double fps = 1000 * MAX_FPS_FRAME_TIMES / averageFrameTime;
+    double fps = 1000 * FRAMES_FOR_FPS_CALC / averageFrameTime;
     char fpsString[16];
     sprintf(fpsString, "%02.2f\n", fps);
 
@@ -781,6 +790,9 @@ void StatusMonitor::LimitFPS()
                           pFont->w,
                           pFont->h };
     SDL_BlitSurface(pFont, NULL, screenSurface, &fontRect);
+
+    // return elapsed time this frame
+    return (frameTicks / 1000.0);
 }
 
 void StatusMonitor::DrawAPU_Status()

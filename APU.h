@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "peripheral.h"
+#include "Audio.h"
 
 // PULSE 1 channel has 4 registers
 #define APU_REG_PULSE1_0    0x4000
@@ -14,7 +15,7 @@
 #define APU_REG_PULSE2_2    0x4006
 #define APU_REG_PULSE2_3    0x4007
 
-// DDlc.vvvv	Pulse 1 Duty cycle, length counter halt, constant volume/envelope flag, and volume/envelope divider period
+// DDlc.vvvv	Pulse Duty cycle, length counter halt, constant volume/envelope flag, and volume/envelope divider period
 typedef union APU_PULSE_REG_0
 {
     struct
@@ -27,7 +28,7 @@ typedef union APU_PULSE_REG_0
     uint8_t entireRegister;
 }APU_PULSE_REG_0;
 
-// EPPP.NSSS	Pulse channel 1 sweep setup (write)
+// EPPP.NSSS	Pulse channel sweep setup (write)
 typedef union APU_PULSE_REG_1_SWEEP
 {
     struct
@@ -40,7 +41,32 @@ typedef union APU_PULSE_REG_1_SWEEP
     uint8_t entireRegister;
 }APU_PULSE_REG_1_SWEEP;
 
-// 
+// LLLL.LLLL	Pulse timer Low 8 bits
+typedef uint8_t APU_PULSE_REG_2_TIMER_LOWER_8;
+
+// llll.lHHH	Pulse length counter load and timer High 3 bits
+typedef union APU_PULSE_REG3_COUNTER_TIMER_HIGH_3
+{
+    struct
+    {
+        uint8_t timerHigh3_Bits : 3;
+        uint8_t pulseLengthCounterLoad : 5;
+    };
+    uint8_t entireRegister;
+}APU_PULSE_REG3_COUNTER_TIMER_HIGH_3;
+
+typedef struct APU_PULSE_CHANNEL
+{
+    APU_PULSE_REG_0                     reg0;
+    APU_PULSE_REG_1_SWEEP               reg1_Sweep;
+    APU_PULSE_REG_2_TIMER_LOWER_8       reg2_TimerLower8;
+    APU_PULSE_REG3_COUNTER_TIMER_HIGH_3 reg3_CounterReset_TimerHigh3;
+
+    uint16_t timer;
+    uint8_t pulseLengthCounter;
+    uint8_t dutyCyclePosition;      // 0 - 7
+    bool pulseOn;
+}APU_PULSE_CHANNEL;
 
 // Triangle channel has 4 registers (but one is unused)
 #define APU_REG_TRIANGLE_0              0x4008 /* CRRR RRRR  -  Length counter halt / linear counter control (C), linear counter load (R) */
@@ -85,6 +111,15 @@ typedef union APU_STATUS
 
 #define APU_STATUS_WRITE_BITS 0x1F
 
+const bool DUTY_CYCLE_WAVEFORM[4][8] = { { false, true, false, false,   false, false, false, false },   // 12.5%
+                                         { false, true, true, false,   false, false, false, false },    // 25%
+                                         { false, true, true, true,   true, false, false, false },      // 50%
+                                         { true, false, false, true,   true, true, true, true } };      // 25% negated
+
+const double APU_CYCLES_PER_SECOND = 894886.5;
+const double SECONDS_PER_APU_CYCLE = 1.0 / APU_CYCLES_PER_SECOND;
+const double APU_CYCLES_PER_SAMPLE = APU_CYCLES_PER_SECOND / SAMPLES_PER_SECOND;
+const double SECONDS_PER_LINE = 1.0 / 60.0 / 262.0;
 
 class APU :
     public Peripheral
@@ -96,7 +131,11 @@ public:
     uint8_t read(uint16_t addr);
     void write(uint16_t addr, uint8_t data);
 
+    void ProcessAudio(double elapsedTime);
+
     Bus *cpuBus;
     APU_STATUS status;
+    APU_PULSE_CHANNEL pulse1;
+    APU_PULSE_CHANNEL pulse2;
 };
 

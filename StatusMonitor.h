@@ -38,7 +38,7 @@ extern SDL_Rect simpleDisplayRect;
 #define NAMETABLE_RES_Y    30 * 8 * 2    /* 2 screens tall, each 30 tiles of 8 pixels */
 #define NAMETABLE_HEIGHT   (NAMETABLE_RES_Y / 2)
 
-#define MAX_FPS_FRAME_TIMES 120
+#define FRAMES_FOR_FPS_CALC 120
 
 extern SDL_Rect nesDisplayRect;
 extern SDL_Rect pattern1Rect;
@@ -54,7 +54,7 @@ public:
 
     bool EventLoop();
 
-    void Draw();
+    double Draw();
 
     void DrawAPU_Status();
     void DrawCPU_Status();
@@ -125,10 +125,11 @@ protected:
     void DrawPattern(SDL_Surface *pSurface, uint8_t *pPatternMemory);
     void DrawStatusReg(char *regName, bool set, int x, int y);
     void DrawReg(char *regName, uint16_t value, int x, int y, bool showDecimal = true);
+
     void SetupColors();
-    void LimitFPS();
+    double LimitFPS();
     uint32_t lastFrameTime;
-    uint32_t frameTimes[MAX_FPS_FRAME_TIMES];
+    uint32_t frameTimes[FRAMES_FOR_FPS_CALC];
     int frameTimesIndex;
 
     // memory locations to keep track of, for identifying variables in running games
