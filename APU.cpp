@@ -12,6 +12,8 @@ APU::APU(Bus *pBus) : Peripheral(pBus, 0x4000, 0x4013)
     cpuBus = pBus;
 
     status.entireRegister = 0;
+    frameCounterStep = 0;
+    apuCyclesBeforeNextFrameCounterStep = (int)APU_CYCLES_PER_QUARTER_FRAME;
 }
 
 APU::~APU()
@@ -55,6 +57,7 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE1_3:
             pulse1.reg3_CounterReset_TimerHigh3.entireRegister = data;
+            pulse1.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse1.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
             break;
 
         case APU_REG_PULSE2_0:
@@ -68,6 +71,7 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE2_3:
             pulse2.reg3_CounterReset_TimerHigh3.entireRegister = data;
+            pulse2.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse2.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
             break;
 
         case APU_REG_TRIANGLE_0:
@@ -112,7 +116,7 @@ void APU::ProcessAudio(double timeDuration)
         while (apuCycles <= APU_CYCLES_PER_SAMPLE && timeDuration >= 0.0)
         {
             // Process pulse1 channel
-            if (status.pulse1_Enabled)
+            if (status.pulse1_Enabled && pulse1.pulseLengthCounter != 0)
             {
                 --pulse1.timer;
 
@@ -123,14 +127,16 @@ void APU::ProcessAudio(double timeDuration)
                     pulse1.timer += 1;
 
                     // Advance position in duty cycle
-                    pulse1.dutyCyclePosition = (pulse1.dutyCyclePosition + 1) & 3;  // 0 - 7
+                    pulse1.dutyCyclePosition = (pulse1.dutyCyclePosition + 1) & 7;  // 0 - 7
 
                     pulse1.pulseOn = DUTY_CYCLE_WAVEFORM[pulse1.reg0.dutyCycle][pulse1.dutyCyclePosition];
                 }
             }
+            else
+                pulse1.pulseOn = false;
 
             // Process pulse2 channel
-            if (status.pulse2_Enabled)
+            if (status.pulse2_Enabled && pulse2.pulseLengthCounter != 0)
             {
                 --pulse2.timer;
 
@@ -141,14 +147,19 @@ void APU::ProcessAudio(double timeDuration)
                     pulse2.timer += 1;
 
                     // Advance position in duty cycle
-                    pulse2.dutyCyclePosition = (pulse2.dutyCyclePosition + 1) & 3;  // 0 - 7
+                    pulse2.dutyCyclePosition = (pulse2.dutyCyclePosition + 1) & 7;  // 0 - 7
 
                     pulse2.pulseOn = DUTY_CYCLE_WAVEFORM[pulse2.reg0.dutyCycle][pulse2.dutyCyclePosition];
                 }
             }
+            else
+                pulse2.pulseOn = false;
 
             timeDuration -= SECONDS_PER_APU_CYCLE;
             apuCycles += 1.0;
+            --apuCyclesBeforeNextFrameCounterStep;
+            if (apuCyclesBeforeNextFrameCounterStep == 0)
+                ClockFrameCounter();
         }
         
         if (timeDuration > 0.0)
@@ -173,4 +184,36 @@ void APU::ProcessAudio(double timeDuration)
     SendAudioData(pSampleBuffer, currentSample);
 
     delete pSampleBuffer;
+}
+
+void APU::ClockFrameCounter()
+{
+    switch (frameCounterStep)
+    {
+        case 0:
+        case 2:
+            break;
+
+        case 1:
+        case 3:
+            // Clock envelope and triangle counters
+            // Clock lench and sweep units
+            if (!pulse1.reg0.dontCountDown)
+            {
+                if (pulse1.pulseLengthCounter != 0)
+                    --pulse1.pulseLengthCounter;
+            }
+
+            if (!pulse2.reg0.dontCountDown)
+            {
+                if (pulse2.pulseLengthCounter != 0)
+                    --pulse2.pulseLengthCounter;
+            }
+
+            break;
+    }
+    
+    frameCounterStep = (frameCounterStep + 1) & 3; // 0 - 3
+
+    apuCyclesBeforeNextFrameCounterStep = (int)APU_CYCLES_PER_QUARTER_FRAME;
 }

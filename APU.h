@@ -116,10 +116,15 @@ const bool DUTY_CYCLE_WAVEFORM[4][8] = { { false, true, false, false,   false, f
                                          { false, true, true, true,   true, false, false, false },      // 50%
                                          { true, false, false, true,   true, true, true, true } };      // 25% negated
 
+const uint8_t LENGTH_LOOKUP_TABLE[0x20] = { 10, 254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14,
+                                            12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30 };
+
 const double APU_CYCLES_PER_SECOND = 894886.5;
 const double SECONDS_PER_APU_CYCLE = 1.0 / APU_CYCLES_PER_SECOND;
 const double APU_CYCLES_PER_SAMPLE = APU_CYCLES_PER_SECOND / SAMPLES_PER_SECOND;
 const double SECONDS_PER_LINE = 1.0 / 60.0 / 262.0;
+
+const double APU_CYCLES_PER_QUARTER_FRAME = APU_CYCLES_PER_SECOND / 240.0; // Approximate
 
 class APU :
     public Peripheral
@@ -132,10 +137,13 @@ public:
     void write(uint16_t addr, uint8_t data);
 
     void ProcessAudio(double elapsedTime);
+    void ClockFrameCounter();
 
     Bus *cpuBus;
     APU_STATUS status;
     APU_PULSE_CHANNEL pulse1;
     APU_PULSE_CHANNEL pulse2;
+    int frameCounterStep; // 0 - 3
+    int apuCyclesBeforeNextFrameCounterStep;
 };
 
