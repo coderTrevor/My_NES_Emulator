@@ -43,6 +43,10 @@ void APU::write(uint16_t addr, uint8_t data)
     {
         case APU_REG_STATUS:
             status.entireRegister = data & APU_STATUS_WRITE_BITS;
+            if (!status.pulse1_Enabled)
+                pulse1.pulseLengthCounter = 0;
+            if (!status.pulse2_Enabled)
+                pulse2.pulseLengthCounter = 0;
             //printf("APU status updated: 0x%X\n", data);
             break;
 
@@ -54,10 +58,16 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE1_2:
             pulse1.reg2_TimerLower8 = data;
+            pulse1.timer = pulse1.reg2_TimerLower8 | ((uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
             break;
         case APU_REG_PULSE1_3:
             pulse1.reg3_CounterReset_TimerHigh3.entireRegister = data;
+
+            pulse1.timer = pulse1.reg2_TimerLower8 | ((uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
+            //printf("C: 0x%X - ", pulse1.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad);
             pulse1.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse1.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
+            //printf("%d\n", pulse1.pulseLengthCounter);
+            pulse1.dutyCyclePosition = 0;
             break;
 
         case APU_REG_PULSE2_0:
@@ -68,10 +78,14 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE2_2:
             pulse2.reg2_TimerLower8 = data;
+            pulse2.timer = pulse2.reg2_TimerLower8 | ((uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
             break;
         case APU_REG_PULSE2_3:
             pulse2.reg3_CounterReset_TimerHigh3.entireRegister = data;
+
+            pulse2.timer = pulse2.reg2_TimerLower8 | ((uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
             pulse2.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse2.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
+            pulse2.dutyCyclePosition = 0;
             break;
 
         case APU_REG_TRIANGLE_0:
@@ -108,6 +122,12 @@ void APU::ProcessAudio(double timeDuration)
     double *pSampleBuffer = new double[sampleCount];
     int currentSample = 0;
 
+    uint16_t pulse1_TimerReset = pulse1.reg2_TimerLower8 | ((uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
+    bool pulse1_Enabled = status.pulse1_Enabled && pulse1_TimerReset >= 8;
+    
+    uint16_t pulse2_TimerReset = pulse2.reg2_TimerLower8 | ((uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
+    bool pulse2_Enabled = status.pulse2_Enabled && pulse2_TimerReset >= 8;
+    
     // Keep generating samples until we've generated the requested duration
     // TODO: Keep track of any differences
     double apuCycles = 0.0;
@@ -116,14 +136,14 @@ void APU::ProcessAudio(double timeDuration)
         while (apuCycles <= APU_CYCLES_PER_SAMPLE && timeDuration >= 0.0)
         {
             // Process pulse1 channel
-            if (status.pulse1_Enabled && pulse1.pulseLengthCounter != 0)
+            if (pulse1_Enabled && pulse1.pulseLengthCounter != 0 )
             {
                 --pulse1.timer;
 
                 if (pulse1.timer == 0xFFFF)
                 {
                     // Reset internal timer
-                    pulse1.timer = pulse1.reg2_TimerLower8 | (uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8;
+                    pulse1.timer = pulse1_TimerReset;
                     pulse1.timer += 1;
 
                     // Advance position in duty cycle
@@ -136,14 +156,14 @@ void APU::ProcessAudio(double timeDuration)
                 pulse1.pulseOn = false;
 
             // Process pulse2 channel
-            if (status.pulse2_Enabled && pulse2.pulseLengthCounter != 0)
+            if (pulse2_Enabled && pulse2.pulseLengthCounter != 0)
             {
                 --pulse2.timer;
 
                 if (pulse2.timer == 0xFFFF)
                 {
                     // Reset internal timer
-                    pulse2.timer = pulse2.reg2_TimerLower8 | (uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8;
+                    pulse2.timer = pulse2_TimerReset;
                     pulse2.timer += 1;
 
                     // Advance position in duty cycle
@@ -165,12 +185,13 @@ void APU::ProcessAudio(double timeDuration)
         if (timeDuration > 0.0)
         {
             // mix the channels and add the current sample to the output buffer
-            if (pulse1.pulseOn)
+            if (pulse1.pulseOn && !(pulse1.reg0.constantVolume && pulse1.reg0.volumeEnvelopeDividerPeriod == 0))
                 pSampleBuffer[currentSample] = 0.5;
             else
                 pSampleBuffer[currentSample] = -0.5;
 
-            if (pulse2.pulseOn)
+            //pSampleBuffer[currentSample] = 0;
+            if (pulse2.pulseOn && !(pulse2.reg0.constantVolume && pulse2.reg0.volumeEnvelopeDividerPeriod == 0))
                 pSampleBuffer[currentSample] += 0.5;
             else
                 pSampleBuffer[currentSample] -= 0.5;
