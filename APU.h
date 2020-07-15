@@ -55,6 +55,13 @@ typedef union APU_PULSE_REG3_COUNTER_TIMER_HIGH_3
     uint8_t entireRegister;
 }APU_PULSE_REG3_COUNTER_TIMER_HIGH_3;
 
+typedef struct APU_CHANNEL_ENVELOPE
+{
+    uint8_t divider;
+    uint8_t decayLevel;
+    bool startFlag;
+}APU_CHANNEL_ENVELOPE;
+
 typedef struct APU_PULSE_CHANNEL
 {
     APU_PULSE_REG_0                     reg0;
@@ -65,6 +72,7 @@ typedef struct APU_PULSE_CHANNEL
     uint16_t timer;
     uint8_t pulseLengthCounter;
     uint8_t dutyCyclePosition;      // 0 - 7
+    APU_CHANNEL_ENVELOPE envelope;
     bool pulseOn;
 }APU_PULSE_CHANNEL;
 
@@ -111,10 +119,15 @@ typedef union APU_STATUS
 
 #define APU_STATUS_WRITE_BITS 0x1F
 
-const bool DUTY_CYCLE_WAVEFORM[4][8] = { { false, true, false, false,   false, false, false, false },   // 12.5%
+/*const bool DUTY_CYCLE_WAVEFORM[4][8] = { { false, true, false, false,   false, false, false, false },   // 12.5%
                                          { false, true, true, false,   false, false, false, false },    // 25%
                                          { false, true, true, true,   true, false, false, false },      // 50%
-                                         { true, false, false, true,   true, true, true, true } };      // 25% negated
+                                         { true, false, false, true,   true, true, true, true } };      // 25% negated*/
+
+const double DUTY_CYCLE_WAVEFORM[4][8] = { { -1,  1, -1, -1, -1, -1, -1, -1 },      // 12.5%
+                                           { -1,  1,  1, -1, -1, -1, -1, -1 },      // 25%
+                                           { -1,  1,  1,  1,  1, -1, -1, -1 },      // 50%
+                                           {  1, -1, -1,  1,  1,  1,  1,  1 } };    // 25% negated
 
 const uint8_t LENGTH_LOOKUP_TABLE[0x20] = { 10, 254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14,
                                             12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30 };
@@ -125,6 +138,7 @@ const double APU_CYCLES_PER_SAMPLE = APU_CYCLES_PER_SECOND / SAMPLES_PER_SECOND;
 const double SECONDS_PER_LINE = 1.0 / 60.0 / 262.0;
 
 const double APU_CYCLES_PER_QUARTER_FRAME = APU_CYCLES_PER_SECOND / 240.0; // Approximate
+const double PULSE_VOLUME_STEP = 1.0 / 30.0;
 
 class APU :
     public Peripheral
@@ -138,6 +152,8 @@ public:
 
     void ProcessAudio(double elapsedTime);
     void ClockFrameCounter();
+
+    void ClockPulseEnvelope(APU_PULSE_CHANNEL *pChannel);
 
     Bus *cpuBus;
     APU_STATUS status;

@@ -68,6 +68,7 @@ void APU::write(uint16_t addr, uint8_t data)
             pulse1.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse1.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
             //printf("%d\n", pulse1.pulseLengthCounter);
             pulse1.dutyCyclePosition = 0;
+            pulse1.envelope.startFlag = true;
             break;
 
         case APU_REG_PULSE2_0:
@@ -86,6 +87,7 @@ void APU::write(uint16_t addr, uint8_t data)
             pulse2.timer = pulse2.reg2_TimerLower8 | ((uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
             pulse2.pulseLengthCounter = LENGTH_LOOKUP_TABLE[pulse2.reg3_CounterReset_TimerHigh3.pulseLengthCounterLoad];
             pulse2.dutyCyclePosition = 0;
+            pulse2.envelope.startFlag = true;
             break;
 
         case APU_REG_TRIANGLE_0:
@@ -100,6 +102,7 @@ void APU::write(uint16_t addr, uint8_t data)
         case APU_REG_NOISE_2_LOOP_AND_PERIOD:
             break;
         case APU_REG_NOISE_3_LENGTH_CTR_LOAD:
+            // TODO: Set envelope start flag
             break;
 
         case APU_REG_DMC_1:
@@ -124,9 +127,11 @@ void APU::ProcessAudio(double timeDuration)
 
     uint16_t pulse1_TimerReset = pulse1.reg2_TimerLower8 | ((uint16_t)pulse1.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
     bool pulse1_Enabled = status.pulse1_Enabled && pulse1_TimerReset >= 8;
-    
+    double pulse1_Output = 0;
+
     uint16_t pulse2_TimerReset = pulse2.reg2_TimerLower8 | ((uint16_t)pulse2.reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
     bool pulse2_Enabled = status.pulse2_Enabled && pulse2_TimerReset >= 8;
+    double pulse2_Output = 0;
     
     // Keep generating samples until we've generated the requested duration
     // TODO: Keep track of any differences
@@ -149,11 +154,9 @@ void APU::ProcessAudio(double timeDuration)
                     // Advance position in duty cycle
                     pulse1.dutyCyclePosition = (pulse1.dutyCyclePosition + 1) & 7;  // 0 - 7
 
-                    pulse1.pulseOn = DUTY_CYCLE_WAVEFORM[pulse1.reg0.dutyCycle][pulse1.dutyCyclePosition];
+                    pulse1_Output = DUTY_CYCLE_WAVEFORM[pulse1.reg0.dutyCycle][pulse1.dutyCyclePosition];
                 }
             }
-            else
-                pulse1.pulseOn = false;
 
             // Process pulse2 channel
             if (pulse2_Enabled && pulse2.pulseLengthCounter != 0)
@@ -169,11 +172,9 @@ void APU::ProcessAudio(double timeDuration)
                     // Advance position in duty cycle
                     pulse2.dutyCyclePosition = (pulse2.dutyCyclePosition + 1) & 7;  // 0 - 7
 
-                    pulse2.pulseOn = DUTY_CYCLE_WAVEFORM[pulse2.reg0.dutyCycle][pulse2.dutyCyclePosition];
+                    pulse2_Output = DUTY_CYCLE_WAVEFORM[pulse2.reg0.dutyCycle][pulse2.dutyCyclePosition];
                 }
             }
-            else
-                pulse2.pulseOn = false;
 
             timeDuration -= SECONDS_PER_APU_CYCLE;
             apuCycles += 1.0;
@@ -185,16 +186,16 @@ void APU::ProcessAudio(double timeDuration)
         if (timeDuration > 0.0)
         {
             // mix the channels and add the current sample to the output buffer
-            if (pulse1.pulseOn && !(pulse1.reg0.constantVolume && pulse1.reg0.volumeEnvelopeDividerPeriod == 0))
-                pSampleBuffer[currentSample] = 0.5;
+            if (pulse1.reg0.constantVolume)
+                pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.reg0.volumeEnvelopeDividerPeriod;
             else
-                pSampleBuffer[currentSample] = -0.5;
+                pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.envelope.decayLevel;
 
-            //pSampleBuffer[currentSample] = 0;
-            if (pulse2.pulseOn && !(pulse2.reg0.constantVolume && pulse2.reg0.volumeEnvelopeDividerPeriod == 0))
-                pSampleBuffer[currentSample] += 0.5;
+            if (pulse2.reg0.constantVolume)
+                pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.reg0.volumeEnvelopeDividerPeriod;
             else
-                pSampleBuffer[currentSample] -= 0.5;
+                pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.envelope.decayLevel;
+
 
             ++currentSample;
         }
@@ -213,11 +214,16 @@ void APU::ClockFrameCounter()
     {
         case 0:
         case 2:
+            ClockPulseEnvelope(&pulse1);
+            ClockPulseEnvelope(&pulse2);
             break;
 
         case 1:
         case 3:
             // Clock envelope and triangle counters
+            ClockPulseEnvelope(&pulse1);
+            ClockPulseEnvelope(&pulse2);
+
             // Clock lench and sweep units
             if (!pulse1.reg0.dontCountDown)
             {
@@ -237,4 +243,39 @@ void APU::ClockFrameCounter()
     frameCounterStep = (frameCounterStep + 1) & 3; // 0 - 3
 
     apuCyclesBeforeNextFrameCounterStep = (int)APU_CYCLES_PER_QUARTER_FRAME;
+}
+
+void APU::ClockPulseEnvelope(APU_PULSE_CHANNEL * pChannel)
+{
+    // Clock envelope counters
+    if (pChannel->envelope.startFlag)
+    {
+        pChannel->envelope.startFlag = false;
+        pChannel->envelope.decayLevel = 15;
+        pChannel->envelope.divider = pChannel->reg0.volumeEnvelopeDividerPeriod;
+    }
+    else
+    {
+        // envelope start flag is clear; clock the envelope divider
+        if (pChannel->envelope.divider == 0)
+        {
+            pChannel->envelope.divider = pChannel->reg0.volumeEnvelopeDividerPeriod;
+
+            // clock the decay level
+            if (pChannel->envelope.decayLevel != 0)
+            {
+                --pChannel->envelope.decayLevel;
+            }
+            else
+            {
+                if (pChannel->reg0.dontCountDown)   // check envelope loop flag
+                    pChannel->envelope.decayLevel = 15;
+            }
+        }
+        else
+        {
+            // pChannel->envelope.divider is non-zero
+            --pChannel->envelope.divider;
+        }
+    }
 }
