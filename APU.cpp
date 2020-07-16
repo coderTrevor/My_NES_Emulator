@@ -14,6 +14,8 @@ APU::APU(Bus *pBus) : Peripheral(pBus, 0x4000, 0x4013)
     status.entireRegister = 0;
     frameCounterStep = 0;
     apuCyclesBeforeNextFrameCounterStep = (int)APU_CYCLES_PER_QUARTER_FRAME;
+    mutePulse1 = false;
+    mutePulse2 = false;
 }
 
 APU::~APU()
@@ -55,6 +57,7 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE1_1:
             pulse1.reg1_Sweep.entireRegister = data;
+            pulse1.sweep.reloadFlag = true;
             break;
         case APU_REG_PULSE1_2:
             pulse1.reg2_TimerLower8 = data;
@@ -76,6 +79,7 @@ void APU::write(uint16_t addr, uint8_t data)
             break;
         case APU_REG_PULSE2_1:
             pulse2.reg1_Sweep.entireRegister = data;
+            pulse2.sweep.reloadFlag = true;
             break;
         case APU_REG_PULSE2_2:
             pulse2.reg2_TimerLower8 = data;
@@ -149,7 +153,7 @@ void APU::ProcessAudio(double timeDuration)
                 {
                     // Reset internal timer
                     pulse1.timer = pulse1_TimerReset;
-                    pulse1.timer += 1;
+                    ++pulse1.timer;
 
                     // Advance position in duty cycle
                     pulse1.dutyCyclePosition = (pulse1.dutyCyclePosition + 1) & 7;  // 0 - 7
@@ -167,7 +171,7 @@ void APU::ProcessAudio(double timeDuration)
                 {
                     // Reset internal timer
                     pulse2.timer = pulse2_TimerReset;
-                    pulse2.timer += 1;
+                    ++pulse2.timer;
 
                     // Advance position in duty cycle
                     pulse2.dutyCyclePosition = (pulse2.dutyCyclePosition + 1) & 7;  // 0 - 7
@@ -185,16 +189,24 @@ void APU::ProcessAudio(double timeDuration)
         
         if (timeDuration > 0.0)
         {
-            // mix the channels and add the current sample to the output buffer
-            if (pulse1.reg0.constantVolume)
-                pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.reg0.volumeEnvelopeDividerPeriod;
-            else
-                pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.envelope.decayLevel;
+            pSampleBuffer[currentSample] = 0;
 
-            if (pulse2.reg0.constantVolume)
-                pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.reg0.volumeEnvelopeDividerPeriod;
-            else
-                pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.envelope.decayLevel;
+            // mix the channels and add the current sample to the output buffer
+            if (!mutePulse1)
+            {
+                if (pulse1.reg0.constantVolume)
+                    pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.reg0.volumeEnvelopeDividerPeriod;
+                else
+                    pSampleBuffer[currentSample] = pulse1_Output * PULSE_VOLUME_STEP * pulse1.envelope.decayLevel;
+            }
+
+            if (!mutePulse2)
+            {
+                if (pulse2.reg0.constantVolume)
+                    pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.reg0.volumeEnvelopeDividerPeriod;
+                else
+                    pSampleBuffer[currentSample] += pulse2_Output * PULSE_VOLUME_STEP * pulse2.envelope.decayLevel;
+            }
 
 
             ++currentSample;
@@ -224,7 +236,7 @@ void APU::ClockFrameCounter()
             ClockPulseEnvelope(&pulse1);
             ClockPulseEnvelope(&pulse2);
 
-            // Clock lench and sweep units
+            // Clock length and sweep units
             if (!pulse1.reg0.dontCountDown)
             {
                 if (pulse1.pulseLengthCounter != 0)
@@ -236,6 +248,9 @@ void APU::ClockFrameCounter()
                 if (pulse2.pulseLengthCounter != 0)
                     --pulse2.pulseLengthCounter;
             }
+
+            ClockSweep(&pulse1, true);
+            ClockSweep(&pulse2, false);
 
             break;
     }
@@ -277,5 +292,46 @@ void APU::ClockPulseEnvelope(APU_PULSE_CHANNEL * pChannel)
             // pChannel->envelope.divider is non-zero
             --pChannel->envelope.divider;
         }
+    }
+}
+
+void APU::ClockSweep(APU_PULSE_CHANNEL * pChannel, bool channel1)
+{
+    /*
+    When the frame counter sends a half-frame clock (at 120 or 96 Hz), two things happen.
+
+    When the sweep unit is muting the channel, the channel's current period remains unchanged, but the divider continues to count down and reload the (unchanging) period as normal. 
+    Otherwise, if the enable flag is set and the shift count is non-zero, when the divider outputs a clock, the channel's period is updated.
+
+    If the shift count is zero, the channel's period is never updated, but muting logic still applies.
+    */
+
+    // If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the channel: The pulse's period is adjusted.
+    if(pChannel->sweep.divider == 0 && pChannel->reg1_Sweep.enabled)// && !pChannel->sweep.mutingChannel)
+    {
+        uint16_t pulse_TimerReset = pChannel->reg2_TimerLower8 | ((uint16_t)pChannel->reg3_CounterReset_TimerHigh3.timerHigh3_Bits << 8);
+
+        int16_t targetTimer = pulse_TimerReset >> pChannel->reg1_Sweep.shiftAmount;
+        if (pChannel->reg1_Sweep.subtractFromPeriod)
+        {
+            targetTimer = -targetTimer;
+            if (channel1)
+                targetTimer -= 1;
+        }
+        //printf("%d -> %d\n", pulse_TimerReset, (pulse_TimerReset + targetTimer) & APU_TIMER_VALID_BITS);
+        pulse_TimerReset = (pulse_TimerReset + targetTimer) & APU_TIMER_VALID_BITS;
+        pChannel->reg2_TimerLower8 = (uint8_t)(pulse_TimerReset & 0xFF);
+        pChannel->reg3_CounterReset_TimerHigh3.timerHigh3_Bits = (uint8_t)((pulse_TimerReset & 0xFF00) >> 8);
+    }
+
+    // If the divider's counter is zero or the reload flag is true: The counter is set to P and the reload flag is cleared. Otherwise, the counter is decremented.
+    if (pChannel->sweep.divider == 0 || pChannel->sweep.reloadFlag)
+    {
+        pChannel->sweep.divider = pChannel->reg1_Sweep.dividerPeriod;
+        pChannel->sweep.reloadFlag = false;
+    }
+    else
+    {
+        --pChannel->sweep.divider;
     }
 }

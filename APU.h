@@ -62,6 +62,13 @@ typedef struct APU_CHANNEL_ENVELOPE
     bool startFlag;
 }APU_CHANNEL_ENVELOPE;
 
+typedef struct APU_CHANNEL_SWEEP
+{
+    uint8_t divider;
+    bool reloadFlag;
+    bool mutingChannel;
+}APU_CHANNEL_SWEEP;
+
 typedef struct APU_PULSE_CHANNEL
 {
     APU_PULSE_REG_0                     reg0;
@@ -73,8 +80,11 @@ typedef struct APU_PULSE_CHANNEL
     uint8_t pulseLengthCounter;
     uint8_t dutyCyclePosition;      // 0 - 7
     APU_CHANNEL_ENVELOPE envelope;
+    APU_CHANNEL_SWEEP sweep;
     bool pulseOn;
 }APU_PULSE_CHANNEL;
+
+#define APU_TIMER_VALID_BITS                0x7FF  /* Timer is 11-bits long */
 
 // Triangle channel has 4 registers (but one is unused)
 #define APU_REG_TRIANGLE_0              0x4008 /* CRRR RRRR  -  Length counter halt / linear counter control (C), linear counter load (R) */
@@ -154,6 +164,7 @@ public:
     void ClockFrameCounter();
 
     void ClockPulseEnvelope(APU_PULSE_CHANNEL *pChannel);
+    void ClockSweep(APU_PULSE_CHANNEL *pChannel, bool channel1);
 
     Bus *cpuBus;
     APU_STATUS status;
@@ -161,5 +172,7 @@ public:
     APU_PULSE_CHANNEL pulse2;
     int frameCounterStep; // 0 - 3
     int apuCyclesBeforeNextFrameCounterStep;
+    bool mutePulse1;
+    bool mutePulse2;
 };
 

@@ -543,6 +543,16 @@ bool StatusMonitor::EventLoop()
                         printf("0x%X\n", memoryLocations.front());
                         break;
 
+                    case SDLK_5:
+                        pAPU->mutePulse1 = !pAPU->mutePulse1;
+                        printf("1: %d\n", pAPU->mutePulse1);
+                        break;
+
+                    case SDLK_6:
+                        pAPU->mutePulse2 = !pAPU->mutePulse2;
+                        printf("2: %d\n", pAPU->mutePulse2);
+                        break;
+
                     // save snapshot
                     case SDLK_F1:
                         pSnapshot->Save();
@@ -802,8 +812,8 @@ void StatusMonitor::DrawAPU_Status()
     int y = apuStatusPos.y;
     int w = apuStatusPos.w; // how much space to put between each status bit
 
-    DrawStatusReg("P1", pAPU->status.pulse1_Enabled, x + (w * 0), y);
-    DrawStatusReg("P2", pAPU->status.pulse2_Enabled, x + (w * 1), y);
+    DrawStatusReg("P1", pAPU->status.pulse1_Enabled && !pAPU->mutePulse1, x + (w * 0), y);
+    DrawStatusReg("P2", pAPU->status.pulse2_Enabled && !pAPU->mutePulse2, x + (w * 1), y);
     DrawStatusReg("T", pAPU->status.triangleEnabled, x + (w * 2), y);
     DrawStatusReg("N", pAPU->status.noiseEnabled, x + (w * 3), y);
     DrawStatusReg("D", pAPU->status.dmcEnabled, x + (w * 4), y);
