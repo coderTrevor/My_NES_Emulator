@@ -56,6 +56,8 @@ public:
     // Stack pointer
     uint8_t SP;
 
+    uint32_t clocks;
+
     FLAGS flags;
     bool running;
     bool nmi;

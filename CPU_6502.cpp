@@ -4,7 +4,6 @@
 CPU_6502::CPU_6502()
 {
     opsHandled = 0;
-
     SetupOpcodes();
 
     printf("%d of 151 opcodes implemented, %02.1f%%\n", opsHandled, opsHandled * 100.0 / 151);
@@ -25,6 +24,8 @@ void CPU_6502::Reset()
     // Even though hardware doesn't initialize these, we'll initialize them
     a = x = y = 0;
     SP = 0xFF;
+
+    clocks = 0;
 
     /* "All registers are initialized by software except Decimal and Interrupt disable mode
     select bits of the Processor Status Register(P) */
@@ -66,6 +67,7 @@ bool CPU_6502::Step()
     }
 
     // get the current opcode
+    // TODO: Does crossing a page boundary have any effect on timing here?
     opcode = bus.read(PC++);
 
     if(debugOutput)
@@ -218,12 +220,15 @@ void CPU_6502::ORA_zp_x_ind()
     address += (uint16_t)bus.read(addr1 + 1) << 8;
 
     ORA_Generic(bus.read(address));
+
+    clocks += 6;
 }
 
 // 05: ORA zp - perform inclusive or between a and value stored in zero page - 3, 2
 void CPU_6502::ORA_zp()
 {
     ORA_Generic(bus.read(operand));
+    clocks += 3;
 }
 
 // 06: ASL zp - shift memory value in zp to the left one bit  - 5, 2
@@ -239,6 +244,8 @@ void CPU_6502::ASL_zp()
     flags.zero = IS_NEGATIVE(value);
 
     bus.write(operand, value);
+
+    clocks += 5;
 }
 
 // 08: PHP i - Push processor status flags onto stack - 3, 1
@@ -251,12 +258,16 @@ void CPU_6502::PHP()
 
     bus.write(0x100 + SP, flagValues);
     --SP;
+
+    clocks += 3;
 }
 
 // 09: ORA # - inclusive OR between a nd immediate value - 2, 2
 void CPU_6502::ORA_imm()
 {
     ORA_Generic((uint8_t)operand);
+
+    clocks += 2;
 }
 
 // 0A: ASL - shift accumulator value one to the left - 2, 1
@@ -268,12 +279,16 @@ void CPU_6502::ASL()
 
     flags.negative = IS_NEGATIVE(a);
     flags.zero = (a == 0);
+
+    clocks += 2;
 }
 
 // 0D: ORA a - Inclusive OR between a and value in memory - 4, 3
 void CPU_6502::ORA_a()
 {
     ORA_Generic(bus.read(operand));
+
+    clocks += 4;
 }
 
 // 0E: ASL a - shift absolute memory value to the left one bit  - 6, 3
@@ -289,23 +304,40 @@ void CPU_6502::ASL_a()
     flags.zero = IS_NEGATIVE(value);
 
     bus.write(operand, value);
+
+    clocks += 6;
 }
 
 // 10: BPL r - branch relative if negative flag is clear - 2, 2
 void CPU_6502::BPL_r()
 {
     if (!flags.negative)
+    {
+        uint16_t oldPC = PC;
         PC += (int8_t)operand;
+        clocks += 1;
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 1;
+    }
+
+    clocks += 2;
 }
 
 // 11: ORA (zp),y - Inclusive OR between a and an indirectly indexed value in memory - 5, 2
 void CPU_6502::ORA_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += (uint16_t)bus.read(operand + 1) << 8;
     address += y;
 
     ORA_Generic(bus.read(address));
+
+    // Increment cycles by one if a page boundary is crossed by the read
+    if ((address & 0xFF) == 0xFF)
+        clocks += 1;
+
+    clocks += 5;
 }
 
 // 15: Inclusive OR between a and a value in ZP memory offset by x - 4, 2
@@ -314,6 +346,8 @@ void CPU_6502::ORA_zp_x()
     uint16_t address = (operand + x) & 0xFF;
 
     ORA_Generic(bus.read(address));
+
+    clocks += 4;
 }
 
 // 16: ASL zp,x - shift memory value in zp offset by x to the left one bit  - 6, 2
@@ -332,24 +366,40 @@ void CPU_6502::ASL_zp_x()
     flags.zero = IS_NEGATIVE(value);
 
     bus.write(address, value);
+
+    clocks += 6;
 }
 
 // 18: CLC i - clear carry - 2, 1
 void CPU_6502::CLC()
 {
     flags.carry = false;
+
+    clocks += 2;
 }
 
-// 19: ORA a,y - Inclusive OR between a and a value stored in memory offset by y - 4, 3
+// 19: ORA a,y - Inclusive OR between a and a value stored in memory offset by y - 4+, 3
 void CPU_6502::ORA_a_y()
 {
     ORA_Generic(bus.read(operand + y));
+
+    // add one cycle if page boundary was crossed
+    if (((operand + y) & 0xFF) == 0xFF)
+        ++clocks;
+
+    clocks += 4;
 }
 
-// 1D: ORA a,x - Inclusive OR between a and a value stored in memory offset by x - 4, 3
+// 1D: ORA a,x - Inclusive OR between a and a value stored in memory offset by x - 4+, 3
 void CPU_6502::ORA_a_x()
 {
     ORA_Generic(bus.read(operand + x));
+
+    // add one cycle if page boundary was crossed
+    if (((operand + x) & 0xFF) == 0xFF)
+        ++clocks;
+
+    clocks += 4;
 }
 
 // 1E: ASL a,x - shift absolute memory offset by x value to the left one bit  - 7, 3
@@ -365,6 +415,8 @@ void CPU_6502::ASL_a_x()
     flags.zero = IS_NEGATIVE(value);
 
     bus.write(operand + x, value);
+
+    clocks += 7;
 }
 
 // 20: JSR a - pushes PC - 1 then jumps to absolute address - 6, 3
@@ -380,6 +432,8 @@ void CPU_6502::JSR()
     SP--;
 
     PC = operand;
+
+    clocks += 6;
 }
 
 // 21: AND (zp, x) - Perform an AND between a and an indexed indirect memory location - 6, 2
@@ -395,6 +449,8 @@ void CPU_6502::AND_zp_x_ind()
 
     flags.negative = IS_NEGATIVE(a);
     flags.zero = (a == 0);
+
+    clocks += 6;
 }
 
 // 24: BIT zp - Perform a bit test with a value in zp memory - 3, 2
@@ -407,6 +463,8 @@ void CPU_6502::BIT_zp()
     flags.zero = (results == 0);
     flags.negative = ((testValue & 0x80) == 0x80);
     flags.overflow = ((testValue & 0x40) == 0x40);
+
+    clocks += 3;
 }
 
 // 25: AND zp - read memory from zp and perform bitwise AND with accumulator - 3, 2
@@ -416,6 +474,8 @@ void CPU_6502::AND_zp()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 3;
 }
 
 // 26: ROL zp - rotate value in zero page memory one bit to the left - 5, 2
@@ -432,6 +492,8 @@ void CPU_6502::ROL_zp()
     flags.zero = (newValue == 0);
 
     bus.write(operand, newValue);
+
+    clocks += 5;
 }
 
 // 28: PLP i - pull processor status flags from stack - 4, 1
@@ -445,6 +507,8 @@ void CPU_6502::PLP()
     flagValues += flags.allFlags & 0x30;
 
     flags.allFlags = flagValues;
+
+    clocks += 4;
 }
 
 // 29: AND # - bitwise AND with accumulator - 2, 2
@@ -454,6 +518,8 @@ void CPU_6502::AND_imm()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 2;
 }
 
 // 2A: ROL A - rotate accumulator one bit to the left - 2, 1
@@ -470,6 +536,8 @@ void CPU_6502::ROL_A()
 
     flags.negative = IS_NEGATIVE(a);
     flags.zero = (a == 0);
+
+    clocks += 2;
 }
 
 // 2C: BIT a - Perform a bit test with a value in abs memory - 4, 3
@@ -482,6 +550,8 @@ void CPU_6502::BIT_a()
     flags.zero = (results == 0);
     flags.negative = ((testValue & 0x80) == 0x80);
     flags.overflow = ((testValue & 0x40) == 0x40);
+
+    clocks += 4;
 }
 
 // 2D: AND a - read memory from absolute address and perform bitwise AND with accumulator - 4, 3
@@ -491,6 +561,8 @@ void CPU_6502::AND_a()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // 2E: ROL a - rotate value in memory one bit to the left - 6, 3
@@ -510,20 +582,37 @@ void CPU_6502::ROL_a()
     flags.zero = (value == 0);
 
     bus.write(operand, value);
+
+    clocks += 6;
 }
 
 // 30: BMI r - branch relative if negative flag is set - 2, 2
 void CPU_6502::BMI_r()
 {
     if (flags.negative)
+    {
+        uint16_t oldPC = PC;
+
         PC += (int8_t)operand;
+        
+        clocks += 1;
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 1;
+    }
+    
+    clocks += 2;
 }
 
-// 31: AND (zp),y - Perform logical AND operation between a and an indirectly indexed value in memory - 5, 2
+// 31: AND (zp),y - Perform logical AND operation between a and an indirectly indexed value in memory - 5+, 2
+// TODO: Not sure I understand 5+ timing and which addition the + comes into play on
 void CPU_6502::AND_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    if ((operand & 0xFF) == 0xFF)
+        ++clocks;
+
+    address += (uint16_t)bus.read(operand + 1) << 8;//bus.read((operand + 1) & 0xFF) << 8;
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
     address += y;
 
     uint8_t value = bus.read(address);
@@ -532,6 +621,8 @@ void CPU_6502::AND_zp_ind_y()
 
     flags.negative = IS_NEGATIVE(a);
     flags.zero = (a == 0);
+
+    clocks += 5;
 }
 
 // 35: AND zp, x - read memory from zp + x and perform bitwise AND with accumulator - 4, 2
@@ -544,6 +635,8 @@ void CPU_6502::AND_zp_x()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // 36: ROL zp,x - rotate value in zero page memory offset by x one bit to the left - 6, 2
@@ -563,30 +656,43 @@ void CPU_6502::ROL_zp_x()
     flags.zero = (newValue == 0);
 
     bus.write(address, newValue);
+
+    clocks += 6;
 }
 
 // 38: set carry - 2, 1
 void CPU_6502::SEC()
 {
     flags.carry = true;
+    clocks += 2;
 }
 
-// 39: AND a,x - read memory from absolute address offset by y and perform bitwise AND with accumulator - 4, 3
+// 39: AND a,x - read memory from absolute address offset by y and perform bitwise AND with accumulator - 4+, 3
 void CPU_6502::AND_a_y()
 {
+    if (((operand + y) & 0xFF00) != (operand & 0xFF00))
+        ++clocks;
+
     a &= bus.read(operand + y);
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
-// 3D: AND a,x - read memory from absolute address offset by x and perform bitwise AND with accumulator - 4, 3
+// 3D: AND a,x - read memory from absolute address offset by x and perform bitwise AND with accumulator - 4+, 3
 void CPU_6502::AND_a_x()
 {
+    if ((operand & 0xFF00) != ((operand + x) & 0xFF00))
+        ++clocks;
+
     a &= bus.read(operand + x);
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // 3E: ROL a,x - rotate value in absolute memory offset by x one bit to the left - 7, 3
@@ -608,6 +714,8 @@ void CPU_6502::ROL_a_x()
     flags.zero = (value == 0);
 
     bus.write(address, value);
+
+    clocks += 7;
 }
 
 // 40: RTI - return from interrupt - 6, 1
@@ -626,6 +734,8 @@ void CPU_6502::RTI()
 
     PC = newPC;
     
+    clocks += 6;
+
     //running = false;
     //printf("\nRet PC - 0x%X\n\n", PC);
 }
@@ -640,12 +750,15 @@ void CPU_6502::EOR_zp_x_ind()
     address += (uint16_t)bus.read(addr1 + 1) << 8;
 
     EOR_Generic(bus.read(address));
+
+    clocks += 6;
 }
 
 // 45: EOR zp - Perform EOR between a and a value stored in zp memory, and store result in a - 3, 2
 void CPU_6502::EOR_zp()
 {
     EOR_Generic(bus.read(operand));
+    clocks += 3;
 }
 
 // 46: LSR zp - read a byte from zp, shift it one bit to the right and put it back - 5, 2
@@ -658,6 +771,8 @@ void CPU_6502::LSR_zp()
     value >>= 1;
 
     bus.write(operand, value);
+
+    clocks += 5;
 }
 
 // 48: PHA s - push a to stack - 3, 1
@@ -665,12 +780,16 @@ void CPU_6502::PHA()
 {
     bus.write(0x100 + SP, a);
     --SP;
+
+    clocks += 3;
 }
 
 // 49: EOR # - Perform EOR between a and an immediate value - 2, 2
 void CPU_6502::EOR_imm()
 {
     EOR_Generic((uint8_t)operand);
+
+    clocks += 2;
 }
 
 // 4A: LSR - shift a one bit to the right. Set carry with old bit 0 value. - 2, 1
@@ -682,18 +801,22 @@ void CPU_6502::LSR()
 
     flags.negative = IS_NEGATIVE(a);
     flags.zero = (a == 0);
+
+    clocks += 2;
 }
 
 // 4C: JMP a (jump to absolute address) - 3, 3
 void CPU_6502::JMP_a()
 {
     PC = operand;
+    clocks += 3;
 }
 
 // 4D: EOR a - Perform an EOR between a and a value in absolute memory - 4, 3
 void CPU_6502::EOR_a()
 {
     EOR_Generic(bus.read(operand));
+    clocks += 4;
 }
 
 // 4E: LSR a - read a byte from abs memory, shift it one bit to the right and put it back - 6, 3
@@ -706,23 +829,42 @@ void CPU_6502::LSR_a()
     value >>= 1;
 
     bus.write(operand, value);
+
+    clocks += 6;
 }
 
 // 50: BVC r - branch relative if overflow flag is clear - 2, 2
 void CPU_6502::BVC_r()
 {
     if (!flags.overflow)
+    {
+        uint16_t oldPC = PC;
         PC += (int8_t)operand;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            ++clocks;
+    }
+
+    clocks += 2;
 }
 
-// 51: EOR (zp),y - Perform an EOR between a and an indirectly indexed value in memory - 5, 2
+// 51: EOR (zp),y - Perform an EOR between a and an indirectly indexed value in memory - 5+, 2
+// TODO: Check 5+ timing
 void CPU_6502::EOR_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    if ((operand & 0xFF) == 0xFF)
+        ++clocks;
+
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += (uint16_t)bus.read(operand + 1) << 8;
     address += y;
 
     EOR_Generic(bus.read(address));
+
+    clocks += 5;
 }
 
 // 55: EOR zp,x - Perform an EOR between a and a value in zp memory offset by x - 4, 2
@@ -732,6 +874,8 @@ void CPU_6502::EOR_zp_x()
     uint16_t address = (operand + x) & 0xFF;
 
     EOR_Generic(bus.read(address));
+
+    clocks += 4;
 }
 
 // 56: LSR zp,x - read a byte from zp offset by x, shift it one bit to the right and put it back - 6, 2
@@ -747,24 +891,35 @@ void CPU_6502::LSR_zp_x()
     value >>= 1;
 
     bus.write(address, value);
+
+    clocks += 6;
 }
 
 // 58: CLI i - clear interrupt disable flag - 2, 1
 void CPU_6502::CLI()
 {
     flags.irqDisable = false;
+    clocks += 2;
 }
 
-// 59: EOR a,y - Perform an EOR between a and a value in absolute memory offset by y - 4, 3
+// 59: EOR a,y - Perform an EOR between a and a value in absolute memory offset by y - 4+, 3
 void CPU_6502::EOR_a_y()
 {
     EOR_Generic(bus.read(operand + y));
+
+    if ((operand & 0xFF00) != ((operand + y) & 0xFF00))
+        ++clocks;
+    clocks += 4;
 }
 
-// 5D: EOR a,x - Perform an EOR between a and a value in absolute memory offset by x - 4, 3
+// 5D: EOR a,x - Perform an EOR between a and a value in absolute memory offset by x - 4+, 3
 void CPU_6502::EOR_a_x()
 {
     EOR_Generic(bus.read(operand + x));
+
+    if ((operand & 0xFF00) != ((operand + x) & 0xFF00))
+        ++clocks;
+    clocks += 4;
 }
 
 // 5E: LSR a,x - read a byte from memory offset by x, shift it one bit to the right and put it back - 7, 3
@@ -777,6 +932,8 @@ void CPU_6502::LSR_a_x()
     value >>= 1;
 
     bus.write(operand + x, value);
+
+    clocks += 7;
 }
 
 // 60: RTS pop an adress of the stack, add one, and jump there - 6, 1
@@ -791,6 +948,8 @@ void CPU_6502::RTS()
     newPC += bus.read(0x100 + SP) << 8;
 
     PC = newPC + 1;
+
+    clocks += 6;
 }
 
 // 61: ADC (zp,x) - Perform an add with carry between a and a value from a zp indexed indirect address - 6, 2
@@ -803,12 +962,15 @@ void CPU_6502::ADC_zp_x_ind()
     address += (uint16_t)bus.read(addr1 + 1) << 8;
 
     ADC_Generic(bus.read(address));
+
+    clocks += 6;
 }
 
-// 65: ADC zp (add memory in zp to accumulator)
+// 65: ADC zp (add memory in zp to accumulator)  - 3, 2
 void CPU_6502::ADC_zp()
 {
     ADC_Generic(bus.read(operand));
+    clocks += 3;
 }
 
 // 66: ROR zp - Move value stored in zp one bit to the right - 5, 2
@@ -826,6 +988,8 @@ void CPU_6502::ROR_zp()
     flags.negative = IS_NEGATIVE(newValue);
 
     bus.write(operand, newValue);
+
+    clocks += 5;
 }
 
 // 68: PLA s - pull off of stack and into a - 4, 1
@@ -836,12 +1000,15 @@ void CPU_6502::PLA()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
-// 69: ADC # - add immediate
+// 69: ADC # - add immediate - 2, 2
 void CPU_6502::ADC_imm()
 {
     ADC_Generic((uint8_t)operand);
+    clocks += 2;
 }
 
 // 6A: ROR A - Rotate accumulator one bit to the right - 2, 1
@@ -858,6 +1025,8 @@ void CPU_6502::ROR_A()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 2;
 }
 
 // 6C: JMP (a) (jump to the address contained at address a) - 6, 3
@@ -873,12 +1042,15 @@ void CPU_6502::JMP_ind()
         addr += (uint16_t)bus.read(operand + 1) << 8;
 
     PC = addr;
+
+    clocks += 5;
 }
 
 // 6D: ADC a - add value in absolute memory to accumulator - 4, 3
 void CPU_6502::ADC_a()
 {
     ADC_Generic(bus.read(operand));
+    clocks += 4;
 }
 
 // 6E: ROR a - Move value stored in absolute memory one bit to the right - 6, 3
@@ -898,23 +1070,43 @@ void CPU_6502::ROR_a()
     flags.negative = IS_NEGATIVE(value);
 
     bus.write(operand, value);
+
+    clocks += 6;
 }
 
 // 70: BVS r - Branch relative if overflow flag is set - 2, 2
 void CPU_6502::BVS_r()
 {
     if (flags.overflow)
+    {
+        uint16_t oldPC = PC;
+
         PC += (int8_t)operand;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            ++clocks;
+    }
+
+    clocks += 2;
 }
 
-// 71: ADC (zp),y - Perform an add with carry between a and an indirectly indexed value in memory - 5, 2 
+// 71: ADC (zp),y - Perform an add with carry between a and an indirectly indexed value in memory - 5+, 2 
+// TODO: check timing
 void CPU_6502::ADC_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+
+    if ((operand & 0xFF) == 0xFF)
+        ++clocks;
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    address += (uint16_t)bus.read(operand + 1) << 8;
     address += y;
 
     ADC_Generic(bus.read(address));
+
+    clocks += 5;
 }
 
 // 75: ADC zp,x - Perform an add with carry between a and a memory value in zero page offset by x - 4, 2
@@ -924,9 +1116,11 @@ void CPU_6502::ADC_zp_x()
     uint16_t address = (operand + x) & 0xFF;
     
     ADC_Generic(bus.read(address));
+
+    clocks += 4;
 }
 
-// 76: ROR zp,x - Move value stored in zero page of memory offset by x one bit to the right - 5, 2
+// 76: ROR zp,x - Move value stored in zero page of memory offset by x one bit to the right - 6, 2
 void CPU_6502::ROR_zp_x()
 {
     // Handle zero-page wrap-around
@@ -946,26 +1140,39 @@ void CPU_6502::ROR_zp_x()
     flags.negative = IS_NEGATIVE(value);
 
     bus.write(address, value);
+
+    clocks += 6;
 }
 
 // 78: SEI i - set interrupt disable flag - 2, 1
 void CPU_6502::SEI()
 {
     flags.irqDisable = true;
+    clocks += 2;
 }
 
-// 79: ADC a,y - Perform an add with carry between a and a value in absolute memory offset by y - 4, 3
+// 79: ADC a,y - Perform an add with carry between a and a value in absolute memory offset by y - 4+, 3
 void CPU_6502::ADC_a_y()
 {
     uint16_t address = operand + y;
 
+    if ((operand & 0xFF00) != (address & 0xFF00))
+        ++clocks;
+
     ADC_Generic(bus.read(address));
+
+    clocks += 4;
 }
 
-// 7D: ADC a,x - Perform an add with carry between a and a value at an absolute address offset by x - 4, 3
+// 7D: ADC a,x - Perform an add with carry between a and a value at an absolute address offset by x - 4+, 3
 void CPU_6502::ADC_a_x()
 {
     ADC_Generic(bus.read(operand + x));
+
+    if ((operand & 0xFF00) != ((operand + x) & 0xFF00))
+        ++clocks;
+
+    clocks += 4;
 }
 
 // 7E: ROR a,x - Move value stored in absolute memory offset by x one bit to the right - 7, 3
@@ -985,6 +1192,8 @@ void CPU_6502::ROR_a_x()
     flags.negative = IS_NEGATIVE(value);
 
     bus.write(operand + x, value);
+
+    clocks += 7;
 }
 
 // 81: STA (zp, x) - store a into a zp indexed indirect address - 6, 2
@@ -999,24 +1208,29 @@ void CPU_6502::STA_zp_x_ind()
     printf("address: 0x%X\n", address);
 
     bus.write(address, a);
+
+    clocks += 6;
 }
 
 // 84: STY zp - store y to a value in zp memory - 3, 2
 void CPU_6502::STY_zp()
 {
     bus.write(operand, y);
+    clocks += 3;
 }
 
 // 85: STA zp (store accumulator to zp memory, 0 - 0xff)
 void CPU_6502::STA_zp()
 {
     bus.write(operand, a);
+    clocks += 3;
 }
 
 // 86: STX zp - store x in a zp memory location - 3, 2
 void CPU_6502::STX_zp()
 {
     bus.write(operand, x);
+    clocks += 3;
 }
 
 // 88: DEY i = decrement y register - 2, 1
@@ -1026,15 +1240,8 @@ void CPU_6502::DEY()
 
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
-}
 
-// 98: TYA i - transfer y to a - 2, 1
-void CPU_6502::TYA()
-{
-    a = y;
-
-    flags.negative = IS_NEGATIVE(a);
-    flags.zero = (a == 0);
+    clocks += 2;
 }
 
 // 8A: TXA - transfer x to a - 2, 1
@@ -1044,41 +1251,62 @@ void CPU_6502::TXA()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 2;
 }
 
 // 8C: STY a (store y to absolute memory address) - 4, 3
 void CPU_6502::STY_a()
 {
     bus.write(operand, y);
+
+    clocks += 4;
 }
 
-// 8D: STA a (store a to absolute memory address)
+// 8D: STA a (store a to absolute memory address) - 4, 3
 void CPU_6502::STA_a()
 {
     bus.write(operand, a);
+
+    clocks += 4;
 }
 
 // 8E: STX a (store x to absolute memory address) - 4, 3
 void CPU_6502::STX_a()
 {
     bus.write(operand, x);
+
+    clocks += 4;
 }
 
-// 90: BCC r - branch relative if carry flag is clear - 2, 2
+// 90: BCC r - branch relative if carry flag is clear - 2+, 2
 void CPU_6502::BCC_r()
 {
     if (!flags.carry)
+    {
+        uint16_t oldPC = PC;
         PC += (int8_t)operand;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            clocks += 1;
+    }
+
+    clocks += 2;
 }
 
 // 91: STA(zp), y - store a to indirectly indexed memory - 6, 2
 void CPU_6502::STA_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)(bus.read((operand + 1) & 0xFF)) << 8;
+    //address += (uint16_t)(bus.read((operand + 1) & 0xFF)) << 8;
+    address += (uint16_t)(bus.read(operand + 1)) << 8;
     address += y;
 
     bus.write(address, a);
+
+    clocks += 6;
 }
 
 // 94: STY zp,x - store y to a value in zp memory offset by x - 4, 2
@@ -1088,12 +1316,16 @@ void CPU_6502::STY_zp_x()
     uint8_t address = (uint8_t)(operand + x);
 
     bus.write(address, y);
+
+    clocks += 4;
 }
 
 // 95: STA zp,x (store a to zp memory offset by x) - 4, 2
 void CPU_6502::STA_zp_x()
 {
     bus.write((operand + x) & 0xFF, a);
+
+    clocks += 4;
 }
 
 // 96: STX zp,y - store x in a zp address offset by y - 4, 2
@@ -1102,24 +1334,43 @@ void CPU_6502::STX_zp_y()
     uint8_t address = (operand + y) & 0xFF;
 
     bus.write(address, x);
+
+    clocks += 4;
+}
+
+// 98: TYA i - transfer y to a - 2, 1
+void CPU_6502::TYA()
+{
+    a = y;
+
+    flags.negative = IS_NEGATIVE(a);
+    flags.zero = (a == 0);
+
+    clocks += 2;
 }
 
 // 99: STA a,y - Store a to absolute address + y offset - 5, 3
 void CPU_6502::STA_a_y()
 {
     bus.write(operand + y, a);
+
+    clocks += 5;
 }
 
 // 9D: STA a,x - store a to an address offset by x - 5, 3
 void CPU_6502::STA_a_x()
 {
     bus.write(operand + x, a);
+
+    clocks += 5;
 }
 
 // 9A: TXS - transfer x to SP register - 2, 1
 void CPU_6502::TXS()
 {
     SP = x;
+
+    clocks += 2;
 }
 
 // A0: LDY # (load immediate value to Y) - 2, 2
@@ -1129,11 +1380,13 @@ void CPU_6502::LDY_imm()
 
     flags.zero = (y == 0);
     flags.negative = IS_NEGATIVE(y);
+
+    clocks += 2;
 }
 
 // A1: LDA (zp,x) - add zp address to x register and
 // read the memory at the resulting address to find
-// the address of the data to load into a
+// the address of the data to load into a - 6, 2
 void CPU_6502::LDA_zp_x_ind()
 {
     // handle zero-page wraparound
@@ -1147,6 +1400,8 @@ void CPU_6502::LDA_zp_x_ind()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 6;
 }
 
 // A2: LDX # (Load immediate into X)
@@ -1155,6 +1410,8 @@ void CPU_6502::LDX_imm()
     x = (uint8_t)operand;
     flags.zero = (x == 0);
     flags.negative = IS_NEGATIVE(x);
+
+    clocks += 2;
 }
 
 // A4: LDY zp - load y with memory from zero page - 3, 2
@@ -1164,6 +1421,8 @@ void CPU_6502::LDY_zp()
 
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
+
+    clocks += 3;
 }
 
 // A5: LDA zp - load a with memory from zp - 3, 2
@@ -1173,6 +1432,8 @@ void CPU_6502::LDA_zp()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 3;
 }
 
 // A6: LDX zp - Load x with memory from zero page - 3, 2
@@ -1182,6 +1443,8 @@ void CPU_6502::LDX_zp()
 
     flags.zero = (x == 0);
     flags.negative = IS_NEGATIVE(x);
+
+    clocks += 3;
 }
 
 // A8: TAY i = transfer a to y - 2, 1
@@ -1191,14 +1454,18 @@ void CPU_6502::TAY()
 
     flags.zero = (y == 0);
     flags.negative = IS_NEGATIVE(y);
+
+    clocks += 2;
 }
 
-// A9: LDA # (imm)
+// A9: LDA # (imm) - 2, 2
 void CPU_6502::LDA_imm()
 {
     a = (uint8_t)operand;
     flags.negative = ((a & 0x80) == 0x80);
     flags.zero = (a == 0);
+
+    clocks += 2;
 }
 
 // AA: TAX i - transfer a to x register
@@ -1207,6 +1474,8 @@ void CPU_6502::TAX()
     x = a;
     flags.negative = IS_NEGATIVE(x);
     flags.zero = (x == 0);
+
+    clocks += 2;
 }
 
 // AC: LDY a - Load y with a value from absolute memory - 4, 3
@@ -1216,6 +1485,7 @@ void CPU_6502::LDY_a()
 
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
+    clocks += 4;
 }
 
 // AD: LDA a - Load a with absolute memory address - LDA 4, 3
@@ -1225,6 +1495,8 @@ void CPU_6502::LDA_a()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // AE: LDX a - load x with value from absolute memory address - 4, 3
@@ -1234,27 +1506,46 @@ void CPU_6502::LDX_a()
 
     flags.zero = (x == 0);
     flags.negative = IS_NEGATIVE(x);
+
+    clocks += 4;
 }
 
-// B0: BCS r - branch relative if carry set - 2, 2
+// B0: BCS r - branch relative if carry set - 2+, 2
 void CPU_6502::BCS_r()
 {
     if (flags.carry)
+    {
+        uint16_t oldPC = PC;
         PC += (int8_t)operand;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            clocks += 1;
+    }
+
+    clocks += 2;
 }
 
 // B1: LDA (zp), y - (Read 2 bytes starting at a zero-page address,
-// add y, and load the memory stored at the resulting address into a) - 5, 2
+// add y, and load the memory stored at the resulting address into a) - 5+, 2
+// TODO: Check timing
 void CPU_6502::LDA_zp_ind_y()
 {
     uint16_t newAddress = bus.read(operand);
-    newAddress += bus.read((operand + 1) & 0xFF) << 8;
+    //newAddress += bus.read((operand + 1) & 0xFF) << 8;
+    if ((newAddress & 0xFF) == 0xFF)
+        clocks += 1;
+
+    newAddress += bus.read(operand + 1) << 8;
     newAddress += y;
 
     a = bus.read(newAddress);
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 5;
 }
 
 // B4: load y with memory from zero page offset by x - 4, 2
@@ -1267,6 +1558,8 @@ void CPU_6502::LDY_zp_x()
 
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
+
+    clocks += 4;
 }
 
 // B5: LDA zp,x - Load a with memory at zp absolute address offset by x LDA zp,x - 4, 2
@@ -1279,6 +1572,8 @@ void CPU_6502::LDA_zp_x()
 
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // B6: LDX zp, y - Load x with memory in zero page offset by y - 4, 2
@@ -1291,21 +1586,30 @@ void CPU_6502::LDX_zp_y()
 
     flags.zero = (x == 0);
     flags.negative = IS_NEGATIVE(x);
+
+    clocks += 4;
 }
 
 // B8: CLV i - Clear overflow flag - 2, 1
 void CPU_6502::CLV()
 {
     flags.overflow = false;
+
+    clocks += 2;
 }
 
-// B9: LDA a,y - Load a with memory at absolute address offset by y - 4, 3
+// B9: LDA a,y - Load a with memory at absolute address offset by y - 4+, 3
 void CPU_6502::LDA_a_y()
 {
     a = bus.read(operand + y);
 
+    if ((operand & 0xFF00) != ((operand + y) & 0xFF00))
+        ++clocks;
+
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
 // BA: TSX i - copy stack pointer to x - 2, 1
@@ -1315,6 +1619,8 @@ void CPU_6502::TSX()
 
     flags.negative = IS_NEGATIVE(x);
     flags.zero = (x == 0);
+
+    clocks += 2;
 }
 
 // BC: LDY a,x - Load y with a value from absolute memory offset by x - 4, 3
@@ -1322,26 +1628,41 @@ void CPU_6502::LDY_a_x()
 {
     y = bus.read(operand + x);
 
+    if ((operand & 0xFF00) != ((operand + y) & 0xFF00))
+        ++clocks;
+
     flags.negative = IS_NEGATIVE(y);
     flags.zero = (y == 0);
+
+    clocks += 4;
 }
 
-// BD: LDA a,x - load a with memory at absolute address offset by x - 4, 3
+// BD: LDA a,x - load a with memory at absolute address offset by x - 4+, 3
 void CPU_6502::LDA_a_x()
 {
     a = bus.read(operand + x);
 
+    if ((operand & 0xFF00) != ((operand + x) & 0xFF00))
+        clocks += 1;
+
     flags.zero = (a == 0);
     flags.negative = IS_NEGATIVE(a);
+
+    clocks += 4;
 }
 
-// BE: LDX a,y - load x with value at absolute memory address offset by y - 4, 3
+// BE: LDX a,y - load x with value at absolute memory address offset by y - 4+, 3
 void CPU_6502::LDX_a_y()
 {
     x = bus.read(operand + y);
 
+    if ((operand & 0xFF00) != ((operand + y) & 0xFF00))
+        ++clocks;
+
     flags.zero = (x == 0);
     flags.negative = IS_NEGATIVE(x);
+
+    clocks += 4;
 }
 
 // C0: CPY # - compare y with immediate value - 2, 2
@@ -1350,16 +1671,8 @@ void CPU_6502::CPY_imm()
     flags.zero = (y == operand);
     flags.carry = (y >= operand);
     flags.negative = IS_NEGATIVE(y - operand);
-}
 
-// C4: CPY zp - compare y with value stored in zero page - 3, 2
-void CPU_6502::CPY_zp()
-{
-    uint8_t value = bus.read(operand);
-
-    flags.zero = (y == value);
-    flags.carry = (y >= value);
-    flags.negative = IS_NEGATIVE(y - value);
+    clocks += 2;
 }
 
 // C1: CMP (zp,x) - Compare a with a zp indexed indirect value - 6, 2
@@ -1370,13 +1683,27 @@ void CPU_6502::CMP_zp_x_ind()
 
     uint16_t address = bus.read(addr1);
     // TODO: Does this need to wrap around as well?
-    address += (uint16_t)bus.read(addr1 + 1) << 8;
-    
+    address += (uint16_t)bus.read((addr1 + 1) & 0xFF) << 8;
+
     uint8_t value = bus.read(address);
 
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 6;
+}
+
+// C4: CPY zp - compare y with value stored in zero page - 3, 2
+void CPU_6502::CPY_zp()
+{
+    uint8_t value = bus.read(operand);
+
+    flags.zero = (y == value);
+    flags.carry = (y >= value);
+    flags.negative = IS_NEGATIVE(y - value);
+
+    clocks += 3;
 }
 
 // C5: CMP zp - compare accumulator with memory stored in zero page - 3, 2
@@ -1387,6 +1714,8 @@ void CPU_6502::CMP_zp()
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 3;
 }
 
 // C6: DEC zp - decrement a value in zp memory - 5, 2
@@ -1400,15 +1729,19 @@ void CPU_6502::DEC_zp()
 
     flags.negative = IS_NEGATIVE(value);
     flags.zero = (value == 0);
+
+    clocks += 5;
 }
 
-// C8: INY i - increment y
+// C8: INY i - increment y - 2, 1
 void CPU_6502::INY()
 {
     ++y;
 
     flags.zero = (y == 0);
     flags.negative = IS_NEGATIVE(y);
+
+    clocks += 2;
 }
 
 // C9: CMP # (compare a to immediate value) - 2, 2
@@ -1417,6 +1750,8 @@ void CPU_6502::CMP_imm()
     flags.carry = (a >= operand);
     flags.zero = (a == operand);
     flags.negative = (IS_NEGATIVE(a - operand));
+
+    clocks += 2;
 }
 
 // CA: decrement x - 2, 1
@@ -1425,6 +1760,8 @@ void CPU_6502::DEX()
     --x;
     flags.negative = IS_NEGATIVE(x);
     flags.zero = (x == 0);
+
+    clocks += 2;
 }
 
 // CC: CPY a - compare y with value stored in absolute memory - 4, 3
@@ -1435,6 +1772,8 @@ void CPU_6502::CPY_a()
     flags.zero = (y == value);
     flags.carry = (y >= value);
     flags.negative = IS_NEGATIVE(y - value);
+
+    clocks += 4;
 }
 
 // CD: CMP a - Compare accumulator with memory at absolute address - 4, 3
@@ -1445,6 +1784,8 @@ void CPU_6502::CMP_a()
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 4;
 }
 
 // CE: DEC a - decrement a value in memory - 6, 3
@@ -1458,23 +1799,38 @@ void CPU_6502::DEC_a()
 
     flags.negative = IS_NEGATIVE(value);
     flags.zero = (value == 0);
+
+    clocks += 6;
 }
 
-// D0 - BRNE r (Branch relative if z flag is cleared) - 2, 2
+// D0 - BRNE r (Branch relative if z flag is cleared) - 2+, 2
 void CPU_6502::BRNE_r()
 {
     if (!flags.zero)
     {
+        uint16_t oldPC = PC;
         int8_t displacement = (int8_t)operand;
         PC += displacement;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            clocks += 1;
     }
+
+    clocks += 2;
 }
 
-// D1: CMP (zp), y - Compare a with an indirectly indexed value in memory - 5, 2
+// D1: CMP (zp), y - Compare a with an indirectly indexed value in memory - 5+, 2
+// TODO: Check timings
 void CPU_6502::CMP_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    if ((address & 0xFF) == 0xFF)
+        ++clocks;
+
+    address += (uint16_t)bus.read(operand + 1) << 8;
     address += y;
 
     uint8_t value = bus.read(address);
@@ -1482,6 +1838,8 @@ void CPU_6502::CMP_zp_ind_y()
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 5;
 }
 
 // D5: CMP zp,x - compare accumulator with memory stored in zero page offset by x - 4, 2
@@ -1495,6 +1853,8 @@ void CPU_6502::CMP_zp_x()
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 4;
 }
 
 // D6: DEC zp, x - decrement a value in zp memory offset by x - 6, 2
@@ -1511,32 +1871,45 @@ void CPU_6502::DEC_zp_x()
 
     flags.negative = IS_NEGATIVE(value);
     flags.zero = (value == 0);
-}
 
-// D9: CMP a, 9 - Compare accumulator with memory at absolute address offset by y - 4, 3
-void CPU_6502::CMP_a_y()
-{
-    uint8_t value = bus.read(operand + y);
-
-    flags.zero = (a == value);
-    flags.carry = (a >= value);
-    flags.negative = IS_NEGATIVE(a - value);
+    clocks += 6;
 }
 
 // D8 - CLD i - clear decimal flag - 2, 1
 void CPU_6502::CLD()
 {
     flags.decimal = false;
+    clocks += 2;
 }
 
-// DD: CMP a, x - Compare accumulator with memory at absolute address offset by x - 4, 3
-void CPU_6502::CMP_a_x()
+// D9: CMP a, 9 - Compare accumulator with memory at absolute address offset by y - 4+, 3
+void CPU_6502::CMP_a_y()
 {
-    uint8_t value = bus.read(operand + x);
+    uint8_t value = bus.read(operand + y);
+    
+    if ((operand & 0xFF00) != ((operand + y) & 0xFF00))
+        ++clocks;
 
     flags.zero = (a == value);
     flags.carry = (a >= value);
     flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 4;
+}
+
+// DD: CMP a, x - Compare accumulator with memory at absolute address offset by x - 4+, 3
+void CPU_6502::CMP_a_x()
+{
+    uint8_t value = bus.read(operand + x);
+
+    if ((operand & 0xFF00) != ((operand + x) & 0xFF00))
+        ++clocks;
+
+    flags.zero = (a == value);
+    flags.carry = (a >= value);
+    flags.negative = IS_NEGATIVE(a - value);
+
+    clocks += 4;
 }
 
 // DE: DEC a, x - decrement a value in abs memory offset by x - 7, 3
@@ -1550,6 +1923,8 @@ void CPU_6502::DEC_a_x()
 
     flags.negative = IS_NEGATIVE(value);
     flags.zero = (value == 0);
+
+    clocks += 7;
 }
 
 // E0 - compare x with immediate value - 2, 2
@@ -1558,6 +1933,8 @@ void CPU_6502::CPX_imm()
     flags.carry = (x >= operand);
     flags.zero = (x == operand);
     flags.negative = IS_NEGATIVE(x - operand);
+
+    clocks += 2;
 }
 
 // E1: SBC (zp,x) - Perform a subtract with carry from an indexed indirect value - 6, 2
@@ -1571,6 +1948,8 @@ void CPU_6502::SBC_zp_x_ind()
     address += (uint16_t)bus.read(addr1 + 1) << 8;
 
     SBC_Generic(bus.read(address));
+
+    clocks += 6;
 }
 
 // E4: CPX zp - compare x with memory value stored in zero page - 3, 2
@@ -1581,12 +1960,15 @@ void CPU_6502::CPX_zp()
     flags.carry = (x >= value);
     flags.zero = (x == value);
     flags.negative = IS_NEGATIVE(x - value);
+
+    clocks += 3;
 }
 
 // E5: SBC zp - subtract from a a value stored in the zero page - 3, 2
 void CPU_6502::SBC_zp()
 {
     SBC_Generic(bus.read(operand));
+    clocks += 3;
 }
 
 // E6: INC zp - increment a value in zp memory - 5, 2
@@ -1600,6 +1982,8 @@ void CPU_6502::INC_zp()
 
     flags.zero = (value == 0);
     flags.negative = IS_NEGATIVE(value);
+
+    clocks += 5;
 }
 
 // E8: INX - Inc X - 2, 1
@@ -1608,17 +1992,21 @@ void CPU_6502::INX()
     ++x;
     flags.zero = (x == 0);
     flags.negative = ((x & 0x80) == 0x80);
+
+    clocks += 8;
 }
 
 // E9: SBC # - subtract immediate from a - 2, 2
 void CPU_6502::SBC_imm()
 {
     SBC_Generic((uint8_t)operand);
+    clocks += 2;
 }
 
 // EA: NOP - 2, 1
 void CPU_6502::NOP()
 {
+    clocks += 2;
 }
 
 // EC: CPX a - compare x with memory value - 4, 3
@@ -1629,12 +2017,15 @@ void CPU_6502::CPX_a()
     flags.carry = (x >= value);
     flags.zero = (x == value);
     flags.negative = IS_NEGATIVE(x - value);
+
+    clocks += 4;
 }
 
 // ED: SBC a - subtract value at absolute addr from a and store result in a - 4, 3
 void CPU_6502::SBC_a()
 {
     SBC_Generic(bus.read(operand));
+    clocks += 4;
 }
 
 // EE: INC a - increment a value in abs memory - 6, 3
@@ -1648,26 +2039,43 @@ void CPU_6502::INC_a()
 
     flags.zero = (value == 0);
     flags.negative = IS_NEGATIVE(value);
+
+    clocks += 6;
 }
 
-// F0: BEQ r - branch if equal - 2, 2
+// F0: BEQ r - branch if equal - 2+, 2
 void CPU_6502::BEQ_r()
 {
     if (flags.zero)
     {
+        uint16_t oldPC = PC;
         int8_t displacement = (int8_t)operand;
         PC += displacement;
+
+        if ((oldPC & 0xFF00) != (PC & 0xFF00))
+            clocks += 2;
+        else
+            ++clocks;
     }
+
+    clocks += 2;
 }
 
-// F1: SBC (zp), y - Perform a subtraction with carry between a and an indirectly indexed value in memory - 5, 2
+// F1: SBC (zp), y - Perform a subtraction with carry between a and an indirectly indexed value in memory - 5+, 2
+// TODO: Check timing
 void CPU_6502::SBC_zp_ind_y()
 {
     uint16_t address = bus.read(operand);
-    address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    //address += (uint16_t)bus.read((operand + 1) & 0xFF) << 8;
+    if ((operand & 0xFF) == 0xFF)
+        clocks += 1;
+
+    address += (uint16_t)bus.read(operand + 1) << 8;
     address += y;
 
     SBC_Generic(bus.read(address));
+
+    clocks += 5;
 }
 
 // F5: SBC zp, x - Subtract value at zp offset by x from a and store result in a - 4, 2
@@ -1677,6 +2085,8 @@ void CPU_6502::SBC_zp_x()
     uint16_t address = (operand + x) & 0xFF;
 
     SBC_Generic(bus.read(address));
+
+    clocks += 4;
 }
 
 // F6: INC zp,x - increment a value in zp memory offset by x - 6, 2
@@ -1693,18 +2103,28 @@ void CPU_6502::INC_zp_x()
 
     flags.zero = (value == 0);
     flags.negative = IS_NEGATIVE(value);
+
+    clocks += 6;
 }
 
-// F9: SBC a,y - subtract value in abs memory address offset by y from a and store result in a - 4, 3
+// F9: SBC a,y - subtract value in abs memory address offset by y from a and store result in a - 4+, 3
 void CPU_6502::SBC_a_y()
 {
     SBC_Generic(bus.read(operand + y));
+    if ((operand & 0xFF00) == ((operand + y) & 0xFF00))
+        clocks += 5;
+    else
+        clocks += 4;
 }
 
 // FD: SBC a,x - subtract value in abs memory address offset by x from a and store result in a - 4, 3
 void CPU_6502::SBC_a_x()
 {
     SBC_Generic(bus.read(operand + x));
+    if ((operand & 0xFF00) == ((operand + x) & 0xFF00))
+        clocks += 5;
+    else
+        clocks += 4;
 }
 
 // FE: INC a,x - increment a value in memory offset by x - 7, 3
@@ -1718,12 +2138,15 @@ void CPU_6502::INC_a_x()
 
     flags.zero = (value == 0);
     flags.negative = IS_NEGATIVE(value);
+
+    clocks += 7;
 }
 
 // F8: SED i - set decimal flag - 2, 1
 void CPU_6502::SED()
 {
     flags.decimal = true;
+    clocks += 2;
 }
 
 void CPU_6502::SetupOpcodes()

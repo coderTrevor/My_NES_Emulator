@@ -612,12 +612,17 @@ bool StatusMonitor::EventLoop()
 
     double elapsedFrameTime = Draw();
 
+    // TODO: account for fractional cycles
+    uint32_t frameCycles = pCPU->clocks + 29780;
     if (cpuRunning && pCPU->running && !pPPU->paused)
     {
         pPPU->statusReg.sprite0_Hit = false;
         for (int y = 0; y < 240; ++y)
         {
-            for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+            // TODO: account for fractional cycles
+            uint32_t lineCycles = pCPU->clocks + 114;
+            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+            while(pCPU->running && !pPPU->paused && pCPU->clocks < lineCycles)
                 cpuRunning = pCPU->Step();
 
             // That's probably enough cycles for an end of line
@@ -638,12 +643,22 @@ bool StatusMonitor::EventLoop()
 
         for (int y = 240; y <= 261; ++y)
         {
-            for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+            //    cpuRunning = pCPU->Step();
+            uint32_t lineCycles = pCPU->clocks + 113;
+            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+            while (pCPU->running && !pPPU->paused && pCPU->clocks < lineCycles)
                 cpuRunning = pCPU->Step();
 
             // That's probably enough cycles for an end of line
             pPPU->scanline++;
         }
+
+        uint32_t lineCycles = pCPU->clocks + 114;
+        //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
+        while (pCPU->running && !pPPU->paused && pCPU->clocks < frameCycles)
+            cpuRunning = pCPU->Step();
+
         pPPU->scanline = 0;
 
         pAPU->ProcessAudio(elapsedFrameTime);

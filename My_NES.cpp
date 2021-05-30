@@ -136,6 +136,10 @@ void NES_Main()
     RAM ram(&(cpu.bus), 0, 0xFFff);
 
     const char *ROM_Name = "Super Mario Bros. (World).nes";
+    //const char *ROM_Name = "02-branch_wrap.nes";
+    //const char *ROM_Name = "03-dummy_reads.nes";
+    //const char *ROM_Name = "1.Branch_Basics.nes";
+    //const char *ROM_Name = "05-zp_xy.nes";
     //const char *ROM_Name = "DK.nes";
 
     // Patch SMB to always return 9 lives
