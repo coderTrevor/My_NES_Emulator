@@ -1019,7 +1019,7 @@ void CPU_6502::ROR_A()
     if (flags.carry)
         newA |= 0x80;
 
-    flags.carry = ((a && 1) == 1);
+    flags.carry = ((a & 1) == 1);
 
     a = newA;
 
