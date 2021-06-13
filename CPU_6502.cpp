@@ -241,7 +241,7 @@ void CPU_6502::ASL_zp()
     value <<= 1;
 
     flags.negative = IS_NEGATIVE(value);
-    flags.zero = IS_NEGATIVE(value);
+    flags.zero = value == 0;
 
     bus.write(operand, value);
 
@@ -771,6 +771,9 @@ void CPU_6502::LSR_zp()
     value >>= 1;
 
     bus.write(operand, value);
+
+    flags.zero = value == 0;
+    flags.negative = IS_NEGATIVE(value);
 
     clocks += 5;
 }
