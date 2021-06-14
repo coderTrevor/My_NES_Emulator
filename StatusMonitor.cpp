@@ -612,60 +612,62 @@ bool StatusMonitor::EventLoop()
 
     double elapsedFrameTime = Draw();
 
-    // TODO: account for fractional cycles
-    uint32_t frameCycles = pCPU->clocks + 29780;
     if (cpuRunning && pCPU->running && !pPPU->paused)
     {
-        pPPU->statusReg.sprite0_Hit = false;
-        for (int y = 0; y < 240; ++y)
+        if (pPPU->uninitialized)
         {
-            // TODO: account for fractional cycles
-            uint32_t lineCycles = pCPU->clocks + 114;
-            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
-            while(pCPU->running && !pPPU->paused && pCPU->clocks < lineCycles)
-                cpuRunning = pCPU->Step();
-
-            // That's probably enough cycles for an end of line
-            pPPU->scanline++;
-
-            // Put in a hack for sprite 0 hit detection
-            if (y == pPPU->OAM_Memory[0].yPos + 1)
+            pCPU->Run(179040); // Run for roughly two frames of CPU cycles (number from FCEU)
+            pPPU->uninitialized--;
+        }
+        else
+        {
+            pPPU->statusReg.sprite0_Hit = false;
+            // Cycle through the 240 visible lines
+            for (int y = 0; y < 240; ++y)
             {
-                pPPU->statusReg.sprite0_Hit = true;
+                // Run the CPU for the amount of time taken by one scanline
+                pCPU->Run(BUS_CLOCKS_PER_SCANLINE);
+                pPPU->scanline++;
+
+                // Put in a hack for sprite 0 hit detection
+                if (y == pPPU->OAM_Memory[0].yPos + 1)
+                {
+                    pPPU->statusReg.sprite0_Hit = true;
+                }
             }
-            //printf("scanline %d\n", pPPU->scanline);
+            // Go through line 240 and the first tick of line 241 before setting VBlank
+            pCPU->Run(BUS_CLOCKS_PER_SCANLINE + 1);
         }
 
         pPPU->statusReg.vBlank = true;
-
         if (pPPU->controlReg.generateNMI_OnVBlank)
             pCPU->TriggerNMI();
 
-        for (int y = 240; y <= 261; ++y)
-        {
-            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
-            //    cpuRunning = pCPU->Step();
-            uint32_t lineCycles = pCPU->clocks + 113;
-            //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
-            while (pCPU->running && !pPPU->paused && pCPU->clocks < lineCycles)
-                cpuRunning = pCPU->Step();
+        // Run through the rest of line 241
+        pCPU->Run(BUS_CLOCKS_PER_SCANLINE - 1);
 
-            // That's probably enough cycles for an end of line
+        // Now go through lines 242-260
+        for (int y = 242; y <= 260; ++y)
+        {
+            pCPU->Run(BUS_CLOCKS_PER_SCANLINE);
             pPPU->scanline++;
         }
 
-        uint32_t lineCycles = pCPU->clocks + 114;
-        //for (int i = 0; i < 150 && cpuRunning && pCPU->running && !pPPU->paused; ++i)
-        while (pCPU->running && !pPPU->paused && pCPU->clocks < frameCycles)
-            cpuRunning = pCPU->Step();
-
+        // Now do the last scanline (one clock less for odd frames)
+        if (pPPU->oddFrame)
+            pCPU->Run(BUS_CLOCKS_PER_SCANLINE - 1);
+        else
+            pCPU->Run(BUS_CLOCKS_PER_SCANLINE);
+        
+        pPPU->oddFrame = !pPPU->oddFrame;
         pPPU->scanline = 0;
 
+        // Process audio for the frame
         pAPU->ProcessAudio(elapsedFrameTime);
 
         if (debugOutput)
             printf("End of frame\n");
-        //pPPU->statusReg.vBlank = false;
+        pPPU->statusReg.vBlank = false;
     }
 
     return true;

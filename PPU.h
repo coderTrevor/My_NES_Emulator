@@ -258,5 +258,7 @@ public:
 
     int scanline;
     bool paused;
+    int uninitialized;
+    bool oddFrame;
 };
 

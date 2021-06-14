@@ -62,6 +62,9 @@ public:
     bool running;
     bool nmi;
 
+    int busClocksAvailable;
+    bool Run(int busClocks);
+
 protected:
     // operations
     void UnhandledOpcode();

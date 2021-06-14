@@ -74,6 +74,8 @@ PPU::PPU(CPU_6502 *pCPU)
     controlReg.entireRegister = 0;
     maskReg.entireRegister = 0;
     OAM_Address = 0;
+    uninitialized = 1;
+    oddFrame = false;
 
     for (int i = 0; i < SCANLINES; ++i)
     {

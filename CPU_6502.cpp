@@ -23,13 +23,15 @@ void CPU_6502::Reset()
 {
     // Even though hardware doesn't initialize these, we'll initialize them
     a = x = y = 0;
-    SP = 0xFF;
+    SP = 0xFD;
 
     clocks = 0;
+    busClocksAvailable = 0;
 
     /* "All registers are initialized by software except Decimal and Interrupt disable mode
     select bits of the Processor Status Register(P) */
     flags.allFlags = 0x34;
+    flags.breakCommand = 0;
 
     PC = bus.read(0xFFFD) << 8;
     PC += bus.read(0xFFFC);
@@ -114,6 +116,28 @@ bool CPU_6502::Step()
 void CPU_6502::TriggerNMI()
 {
     nmi = true;
+}
+
+bool CPU_6502::Run(int busClocks)
+{
+    busClocksAvailable += busClocks;
+
+    unsigned int prevCPU_Clocks = clocks;
+    unsigned int ranClocks;
+    bool retVal = true;
+
+    while (running && busClocksAvailable > 0)
+    {
+        // Execute the next cpu instruction
+        retVal &= Step();
+
+        // Update clock counts
+        ranClocks = clocks - prevCPU_Clocks;
+        prevCPU_Clocks = clocks;
+        busClocksAvailable -= 3 * ranClocks;
+    }
+
+    return retVal;
 }
 
 // operations
@@ -1996,7 +2020,7 @@ void CPU_6502::INX()
     flags.zero = (x == 0);
     flags.negative = ((x & 0x80) == 0x80);
 
-    clocks += 8;
+    clocks += 2;
 }
 
 // E9: SBC # - subtract immediate from a - 2, 2
