@@ -122,7 +122,7 @@ void SimpleMain()
 
 Snapshot *pSnapshot;
 
-void NES_Main()
+void NES_Main(char *romName)
 {
     CPU_6502 cpu;
     
@@ -164,7 +164,11 @@ void NES_Main()
     //iNES_File ROM("03-dummy_reads.nes");
     //iNES_File ROM("nestest.nes");
     //iNES_File ROM("scanline.nes");
-    iNES_File ROM(ROM_Name);    
+    char *romToOpen = (char *)ROM_Name;
+    if (strlen(romName))
+        romToOpen = romName;
+
+    iNES_File ROM(romToOpen);
     //iNES_File ROM("Popeye.nes");
     //iNES_File ROM("Ice Climber (USA, Europe).nes");
 
@@ -205,10 +209,14 @@ void NES_Main()
 
 int main(int argc, char* argv[])
 {
+    char buffer[_MAX_PATH] = { 0 };
+    if (argc > 0)
+        strcpy(buffer, argv[1]);
+
 #ifdef SYSTEM_SIMPLE
     SimpleMain();
 #else
-    NES_Main();
+    NES_Main(buffer);
 #endif
 
     return 0;

@@ -8,6 +8,8 @@
 #include "CPU_6502.h"
 #include <SDL.h>
 
+#define BUS_CLOCKS_PER_SCANLINE 341
+
 // PPU Registers:
 // 	VPHB SINN	NMI enable(V), PPU master / slave(P), sprite height(H), background tile select(B), sprite tile select(S), increment mode(I), nametable select(NN)
 #define PPUCTRL	0
