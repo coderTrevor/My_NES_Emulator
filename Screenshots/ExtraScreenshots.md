@@ -1,0 +1,21 @@
+# Screenshots
+These are some screenshots taken during development. They show the chronological progression of the emulator as it went from a simple 6502 emulator to an NES emulator capable of running SMB to completion.
+
+![Screenshot running my snake game](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot1.png "Emulator Screenshot")
+![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot2.png "Emulator Screenshot of Donkey Kong")
+![Screenshot running Super Mario Bros](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot3.png "Emulator Screenshot of Super Mario Bros")
+![Screenshot running nestest.nes](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot4.png "Emulator Screenshot of nestest.nes")
+![Screenshot running Super Mario Bros with color](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot5.png "Emulator Screenshot of Super Mario Bros. with color")
+![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot6.png "Emulator Screenshot of Donkey Kong with color")
+![Screenshot of me playing Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot7.png "Emulator Screenshot of Donkey Kong with sprites")
+![Screenshot running Super Mario Bros with proper title screen](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot8.png "Emulator Screenshot of Super Mario Bros. with proper title screen")
+![Screenshot running Super Mario Bros with Mario](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot9.png "Emulator Screenshot of Super Mario Bros. with Mario")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot10.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot11.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot12.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot13.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot14.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot15.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot16.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
+![Screenshot running Super Mario Bros with no graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot17.png "Emulator Screenshot of Super Mario Bros. with no graphical errors")
+![Screenshot running Super Mario Bros played to completion](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot18.png "Emulator Screenshot of Super Mario Bros. played to completion")

@@ -9,27 +9,12 @@ It emulates 100% of the official opcodes of the 6052 CPU.
 
 It began as an emulator of the simple 6502 system like the virtual machine you can find [here](http://skilldrick.github.io/easy6502/). It can run the snake game you can find there, and the snake game I wrote six years ago that's here on Github.
 
-Sound support is still a work-in-progress.
+Full sound support is still a work-in-progress, though the music in Super Mario Bros. is working.
 
-## Screenshots Taken During Development
-![Screenshot running my snake game](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot1.png "Emulator Screenshot")
-![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot2.png "Emulator Screenshot of Donkey Kong")
-![Screenshot running Super Mario Bros](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot3.png "Emulator Screenshot of Super Mario Bros")
-![Screenshot running nestest.nes](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot4.png "Emulator Screenshot of nestest.nes")
-![Screenshot running Super Mario Bros with color](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot5.png "Emulator Screenshot of Super Mario Bros. with color")
-![Screenshot running Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot6.png "Emulator Screenshot of Donkey Kong with color")
-![Screenshot of me playing Donky Kong](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot7.png "Emulator Screenshot of Donkey Kong with sprites")
-![Screenshot running Super Mario Bros with proper title screen](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot8.png "Emulator Screenshot of Super Mario Bros. with proper title screen")
-![Screenshot running Super Mario Bros with Mario](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot9.png "Emulator Screenshot of Super Mario Bros. with Mario")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot10.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot11.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot12.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot13.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot14.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot15.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot16.png "Emulator Screenshot of Super Mario Bros. with graphical errors")
-![Screenshot running Super Mario Bros with no graphical errors](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot17.png "Emulator Screenshot of Super Mario Bros. with no graphical errors")
+## Screenshots
 ![Screenshot running Super Mario Bros played to completion](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot18.png "Emulator Screenshot of Super Mario Bros. played to completion")
+![Screenshot running nestest.nes](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/Screenshot4.png "Emulator Screenshot of nestest.nes")
+More screenshots [here](https://github.com/coderTrevor/My_NES_Emulator/blob/master/Screenshots/ExtraScreenshots.md).
 
 ## Goals
 - [x] Should be capable of running a commercial NES game, not one of the really hard-to-emulate ones like Battletoads, but maybe one of the medium-difficulty ones like SMB. 
